@@ -184,6 +184,9 @@ export const TableView: React.FC<TableViewProps> = ({ tasks, users, clients, onE
               >
                 Fecha Entrega {sortField === 'dueDate' && (sortOrder === 'asc' ? '↑' : '↓')}
               </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                Prioridad
+              </th>
               <th 
                 onClick={() => handleSort('status')}
                 className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
@@ -220,6 +223,19 @@ export const TableView: React.FC<TableViewProps> = ({ tasks, users, clients, onE
                     <span className={isOverdue ? 'text-red-600 font-semibold' : 'text-gray-700'}>
                       {formatDate(task.dueDate)}
                       {isOverdue && ' ⚠️'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      task.priority === 'critical' ? 'bg-red-100 text-red-700' :
+                      task.priority === 'high' ? 'bg-orange-100 text-orange-700' :
+                      task.priority === 'medium' ? 'bg-blue-100 text-blue-700' :
+                      'bg-slate-100 text-slate-700'
+                    }`}>
+                      {task.priority === 'critical' ? 'Crítica' :
+                       task.priority === 'high' ? 'Alta' :
+                       task.priority === 'medium' ? 'Media' :
+                       'Baja'}
                     </span>
                   </td>
                   <td className="px-4 py-3">
