@@ -54,10 +54,16 @@ export const generateDailyReport = (tasks: Task[], users: User[]): string => {
         .filter(Boolean)
         .join(', ') || users.find(u => u.id === task.assigneeId)?.name || 'Sin asignar';
       const daysOverdue = Math.floor((new Date().getTime() - new Date(task.dueDate).getTime()) / (1000 * 60 * 60 * 24));
+      const statusLabel = {
+        todo: 'Por Hacer',
+        inprogress: 'En Progreso',
+        review: 'En Revisión',
+        done: 'Finalizado'
+      }[task.status];
       report += `  🔴 [${task.priority.toUpperCase()}] ${task.title}\n`;
       report += `     Responsable(s): ${assigneeNames}\n`;
       report += `     Vencida hace: ${daysOverdue} día(s)\n`;
-      report += `     Estado: ${task.status}\n\n`;
+      report += `     Estado: ${statusLabel}\n\n`;
     });
     report += `\n`;
   }
@@ -89,9 +95,16 @@ export const generateDailyReport = (tasks: Task[], users: User[]): string => {
         low: '📝'
       }[task.priority];
       
+      const statusLabel = {
+        todo: 'Por Hacer',
+        inprogress: 'En Progreso',
+        review: 'En Revisión',
+        done: 'Finalizado'
+      }[task.status];
+      
       report += `  ${index + 1}. ${priorityEmoji} [${task.priority.toUpperCase()}] ${task.title}\n`;
       report += `     Vence: ${dueDate}${isOverdue ? ' ⚠️ VENCIDA' : ''}\n`;
-      report += `     Estado: ${task.status}\n`;
+      report += `     Estado: ${statusLabel}\n`;
       if (task.description) {
         report += `     Descripción: ${task.description.substring(0, 80)}${task.description.length > 80 ? '...' : ''}\n`;
       }
