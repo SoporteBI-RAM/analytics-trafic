@@ -5,21 +5,36 @@ const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL || '';
 export const sheetsService = {
   async getClients() {
     try {
+      console.log('🔄 Cargando clientes de Sheets...');
       const range = 'Clients!A:B';
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}`;
+      
+      if (!API_KEY || !SHEET_ID) {
+        console.error('❌ Faltan credenciales para clientes:', { API_KEY: !!API_KEY, SHEET_ID: !!SHEET_ID });
+        return [];
+      }
       
       const response = await fetch(url);
       const data = await response.json();
       
-      if (!data.values || data.values.length <= 1) return [];
+      if (data.error) {
+        console.error('❌ Error de Google Sheets API (clientes):', data.error);
+        return [];
+      }
+      
+      if (!data.values || data.values.length <= 1) {
+        console.warn('⚠️ Hoja Clients vacía o sin datos');
+        return [];
+      }
       
       const [headers, ...rows] = data.values;
+      console.log(`✅ ${rows.length} clientes cargados`);
       return rows.map(row => ({
         id: row[0] || '',
         name: row[1] || ''
       }));
     } catch (error) {
-      console.error('Error loading clients from Sheets:', error);
+      console.error('❌ Error loading clients from Sheets:', error);
       const saved = localStorage.getItem('clients');
       return saved ? JSON.parse(saved) : [];
     }
@@ -67,13 +82,27 @@ export const sheetsService = {
 
   async getTasks() {
     try {
+      console.log('🔄 Cargando tareas de Sheets...');
       const range = 'Tasks!A:K';
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}`;
+      
+      if (!API_KEY || !SHEET_ID) {
+        console.error('❌ Faltan credenciales para tareas:', { API_KEY: !!API_KEY, SHEET_ID: !!SHEET_ID });
+        return [];
+      }
       
       const response = await fetch(url);
       const data = await response.json();
       
-      if (!data.values || data.values.length <= 1) return [];
+      if (data.error) {
+        console.error('❌ Error de Google Sheets API (tareas):', data.error);
+        return [];
+      }
+      
+      if (!data.values || data.values.length <= 1) {
+        console.warn('⚠️ Hoja Tasks vacía o sin datos');
+        return [];
+      }
       
       // Helper para normalizar fechas
       const normalizeDate = (dateStr: string) => {
@@ -95,6 +124,7 @@ export const sheetsService = {
       };
       
       const [headers, ...rows] = data.values;
+      console.log(`✅ ${rows.length} tareas cargadas`);
       return rows.map(row => ({
         id: row[0] || '',
         title: row[1] || '',
