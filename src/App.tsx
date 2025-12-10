@@ -78,6 +78,25 @@ const App: React.FC = () => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
+  // Función para manejar login y auto-seleccionar el usuario en filtros
+  const handleLogin = (user: User) => {
+    setCurrentUser(user);
+    // Auto-seleccionar el usuario logueado en el filtro de responsables
+    setSelectedAssignees([user.id]);
+  };
+
+  // Función para manejar logout y limpiar filtros
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setSelectedAssignees([]);
+    setSelectedStatuses([]);
+    setSelectedPriorities([]);
+    setSelectedClients([]);
+    setSearchTaskName('');
+    setDateFrom('');
+    setDateTo('');
+  };
+
   useEffect(() => {
     loadData();
     
@@ -402,7 +421,7 @@ const App: React.FC = () => {
   const unassignedTasks = filteredTasks.filter(t => !t.assigneeId && (!t.assigneeIds || t.assigneeIds.length === 0));
 
   if (!currentUser) {
-    return <Auth onLogin={setCurrentUser} />;
+    return <Auth onLogin={handleLogin} />;
   }
 
   if (isLoading) {
@@ -499,7 +518,7 @@ const App: React.FC = () => {
             <p className="text-xs text-gray-500 truncate">{currentUser.role}</p>
           </div>
           <button 
-            onClick={() => setCurrentUser(null)}
+            onClick={handleLogout}
             className="text-gray-400 hover:text-red-500 p-1"
           >
             <LogOut size={16} />
@@ -573,6 +592,29 @@ const App: React.FC = () => {
             onDateToChange={setDateTo}
             onClearFilters={handleClearFilters}
           />
+
+          {/* Indicador de filtro personal */}
+          {selectedAssignees.length === 1 && selectedAssignees[0] === currentUser.id && (
+            <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="bg-blue-500 rounded-full p-1">
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-blue-900">Mostrando solo tus tareas</p>
+                  <p className="text-xs text-blue-700">Para ver tareas de otros, agrega responsables en el filtro</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedAssignees([])}
+                className="text-blue-600 hover:text-blue-800 text-xs font-medium px-3 py-1 hover:bg-blue-100 rounded transition-colors"
+              >
+                Ver todas
+              </button>
+            </div>
+          )}
 
           {viewMode === ViewMode.KANBAN && (
             <div className="flex gap-6 h-full min-w-[1000px] overflow-x-auto pb-4">
