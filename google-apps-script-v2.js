@@ -21,7 +21,8 @@ function doPost(e) {
         task.dueDate || '',
         (task.tags || []).join(','),
         (task.assigneeIds || []).join(','),
-        task.clientId || ''
+        task.clientId || '',
+        task.completedDate || ''
       ]);
       
       return ContentService.createTextOutput(JSON.stringify({success: true, message: 'Tarea agregada'})).setMimeType(ContentService.MimeType.JSON);
@@ -38,8 +39,8 @@ function doPost(e) {
       // Buscar la tarea por ID
       for (let i = 1; i < allData.length; i++) {
         if (allData[i][0] === task.id) {
-          // Actualizar la fila
-          tasksSheet.getRange(i + 1, 1, 1, 11).setValues([[
+          // Actualizar la fila (12 columnas A-L)
+          tasksSheet.getRange(i + 1, 1, 1, 12).setValues([[
             task.id,
             task.title || '',
             task.description || '',
@@ -50,7 +51,8 @@ function doPost(e) {
             task.dueDate || '',
             (task.tags || []).join(','),
             (task.assigneeIds || []).join(','),
-            task.clientId || ''
+            task.clientId || '',
+            task.completedDate || ''
           ]]);
           
           return ContentService.createTextOutput(JSON.stringify({success: true, message: 'Tarea actualizada'})).setMimeType(ContentService.MimeType.JSON);

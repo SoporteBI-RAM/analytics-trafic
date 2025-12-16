@@ -83,7 +83,7 @@ export const sheetsService = {
   async getTasks() {
     try {
       console.log('🔄 Cargando tareas de Sheets...');
-      const range = 'Tasks!A:K';
+      const range = 'Tasks!A:L'; // Extendido a L para completedDate
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}`;
       
       if (!API_KEY || !SHEET_ID) {
@@ -136,7 +136,8 @@ export const sheetsService = {
         dueDate: normalizeDate(row[7]),
         tags: row[8] ? row[8].split(',').map((t: string) => t.trim()) : [],
         assigneeIds: row[9] ? row[9].split(',').map((t: string) => t.trim()) : (row[5] ? [row[5]] : []),
-        clientId: row[10] || null
+        clientId: row[10] || null,
+        completedDate: row[11] || null
       }));
     } catch (error) {
       console.error('Error loading tasks from Sheets:', error);

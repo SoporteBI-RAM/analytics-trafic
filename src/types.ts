@@ -27,6 +27,7 @@ export interface Task {
   startDate: string;
   dueDate: string;
   tags: string[];
+  completedDate?: string | null; // Fecha cuando se marcó como finalizada
 }
 
 export enum ViewMode {

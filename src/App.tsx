@@ -258,6 +258,18 @@ const App: React.FC = () => {
         const wasCompleted = updatedTask.status !== 'done' && status === 'done';
         
         const taskWithNewStatus = { ...updatedTask, status };
+        
+        // Si se completó ahora, agregar fecha de finalización
+        if (wasCompleted) {
+          const today = new Date().toISOString().split('T')[0];
+          taskWithNewStatus.completedDate = today;
+        }
+        
+        // Si se desmarca como completada, limpiar fecha
+        if (updatedTask.status === 'done' && status !== 'done') {
+          taskWithNewStatus.completedDate = null;
+        }
+        
         const newTasks = tasks.map(t => t.id === draggingId ? taskWithNewStatus : t);
         setTasks(newTasks);
         localStorage.setItem('tasks', JSON.stringify(newTasks));
@@ -307,6 +319,17 @@ const App: React.FC = () => {
     // Detectar si la tarea pasó a "done"
     const oldTask = tasks.find(t => t.id === taskData.id);
     const wasCompleted = oldTask && oldTask.status !== 'done' && taskData.status === 'done';
+    
+    // Si se completó ahora, agregar fecha de finalización
+    if (wasCompleted) {
+      const today = new Date().toISOString().split('T')[0];
+      taskData.completedDate = today;
+    }
+    
+    // Si se desmarca como completada, limpiar fecha
+    if (oldTask && oldTask.status === 'done' && taskData.status !== 'done') {
+      taskData.completedDate = null;
+    }
     
     const newTasks = tasks.map(t => t.id === taskData.id ? taskData : t);
     setTasks(newTasks);
