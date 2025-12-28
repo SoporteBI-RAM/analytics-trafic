@@ -10,14 +10,15 @@ import { User, Task, Status, ViewMode, Priority, Client, DayOfWeek } from './typ
 import { MOCK_USERS, MOCK_CLIENTS, STATUS_LABELS, STATUS_COLORS } from './constants';
 import { generateDailyReport } from './services/geminiService';
 import { sheetsService } from './services/sheetsService';
-import { 
-  LayoutDashboard, 
-  CalendarRange, 
-  Users as UsersIcon, 
-  Plus, 
-  Sparkles, 
+import {
+  LayoutDashboard,
+  CalendarRange,
+  Users as UsersIcon,
+  Plus,
+  Sparkles,
   LogOut,
   Mail,
+  UserCog,
   X,
   Edit,
   Trash2,
@@ -28,7 +29,7 @@ import {
 // Helper para obtener fecha local en formato YYYY-MM-DD SIEMPRE en UTC-5 (Ecuador)
 const getLocalDateString = (date?: Date | string | null): string => {
   let d: Date;
-  
+
   if (!date) {
     d = new Date();
   } else if (typeof date === 'string') {
@@ -44,15 +45,15 @@ const getLocalDateString = (date?: Date | string | null): string => {
   } else {
     d = date;
   }
-  
+
   // Convertir a UTC-5 (Ecuador)
   const utcTime = d.getTime() + (d.getTimezoneOffset() * 60000); // UTC
   const ecuadorTime = new Date(utcTime - (5 * 3600000)); // UTC-5
-  
+
   const year = ecuadorTime.getUTCFullYear();
   const month = String(ecuadorTime.getUTCMonth() + 1).padStart(2, '0');
   const day = String(ecuadorTime.getUTCDate()).padStart(2, '0');
-  
+
   return `${year}-${month}-${day}`;
 };
 
@@ -88,7 +89,13 @@ const App: React.FC = () => {
   const handleLogin = (user: User) => {
     setCurrentUser(user);
     // Auto-seleccionar el usuario logueado en el filtro de responsables
-    setSelectedAssignees([user.id]);
+    // Si es Analyst, es OBLIGATORIO que esté seleccionado él mismo
+    if (user.role === 'Analyst') {
+      setSelectedAssignees([user.id]);
+    } else {
+      // Admin ve a todos por defecto (vacío = todos)
+      setSelectedAssignees([user.id]);
+    }
     // Excluir tareas finalizadas por defecto
     setSelectedStatuses(['todo', 'inprogress', 'review']);
   };
@@ -108,12 +115,12 @@ const App: React.FC = () => {
 
   useEffect(() => {
     loadData();
-    
+
     // Polling cada 10 segundos para sincronizar cambios de otros usuarios
     const interval = setInterval(() => {
       syncDataFromSheets();
     }, 10000);
-    
+
     // Verificar cada hora si hay que generar nuevas tareas hijas
     const dailyCheck = setInterval(async () => {
       console.log('⏰ Verificación horaria de tareas recurrentes');
@@ -127,7 +134,7 @@ const App: React.FC = () => {
         });
       }
     }, 3600000); // 1 hora
-    
+
     return () => {
       clearInterval(interval);
       clearInterval(dailyCheck);
@@ -141,7 +148,7 @@ const App: React.FC = () => {
         sheetsService.getUsers(),
         sheetsService.getClients()
       ]);
-      
+
       // Solo actualizar si hay datos nuevos
       if (loadedTasks.length > 0) {
         setTasks(prevTasks => {
@@ -153,14 +160,14 @@ const App: React.FC = () => {
           })) : prevTasks;
         });
       }
-      
+
       if (loadedUsers.length > 0) {
         setUsers(prevUsers => {
           const hasChanges = JSON.stringify(prevUsers) !== JSON.stringify(loadedUsers);
           return hasChanges ? loadedUsers : prevUsers;
         });
       }
-      
+
       if (loadedClients.length > 0) {
         setClients(prevClients => {
           const hasChanges = JSON.stringify(prevClients) !== JSON.stringify(loadedClients);
@@ -179,28 +186,28 @@ const App: React.FC = () => {
         sheetsService.getUsers(),
         sheetsService.getClients()
       ]);
-      
+
       if (loadedUsers.length > 0) {
         setUsers(loadedUsers);
       }
-      
+
       if (loadedClients.length > 0) {
         setClients(loadedClients);
       }
-      
+
       if (loadedTasks.length > 0) {
         const tasksWithAssigneeIds = loadedTasks.map(t => ({
           ...t,
           assigneeIds: t.assigneeIds || (t.assigneeId ? [t.assigneeId] : []),
           clientId: t.clientId || null
         }));
-        
+
         // Generar tareas hijas para HOY (proceso diario)
         const newChildTasks = await generateDailyChildTasks(tasksWithAssigneeIds);
-        
+
         const allTasks = [...tasksWithAssigneeIds, ...newChildTasks];
         setTasks(allTasks);
-        
+
         // Guardar nuevas tareas hijas en Sheets
         if (newChildTasks.length > 0) {
           newChildTasks.forEach(childTask => {
@@ -233,45 +240,45 @@ const App: React.FC = () => {
   const generateDailyChildTasks = async (allTasks: Task[]): Promise<Task[]> => {
     const today = getLocalDateString(); // Fecha local, no UTC
     const todayDate = new Date(today);
-    
+
     console.log('🌅 Proceso diario: Generando tareas para', today);
-    
+
     // Filtrar solo tareas madre activas
     const motherTasks = allTasks.filter(t => t.isRecurring && !t.parentTaskId);
-    
+
     const newChildTasks: Task[] = [];
-    
+
     for (const mother of motherTasks) {
       if (!mother.recurrence) continue;
-      
+
       const startDate = new Date(mother.startDate);
       const endDate = new Date(mother.recurrence.endDate || mother.dueDate);
-      
+
       // Verificar si hoy está en el rango
       if (todayDate < startDate || todayDate > endDate) continue;
-      
+
       // Verificar si debe crear tarea hoy
       const shouldCreate = checkIfShouldCreateTask(today, mother.recurrence);
-      
+
       if (!shouldCreate) {
         console.log(`  ⏭️ "${mother.title}" - Hoy no coincide`);
         continue;
       }
-      
+
       // Verificar si ya existe tarea hija para hoy
-      const existsToday = allTasks.some(t => 
-        t.parentTaskId === mother.id && 
+      const existsToday = allTasks.some(t =>
+        t.parentTaskId === mother.id &&
         t.startDate === today
       );
-      
+
       if (existsToday) {
         console.log(`  ℹ️ "${mother.title}" - Ya existe tarea para hoy`);
         continue;
       }
-      
+
       // Crear tarea hija
       console.log(`  ✅ Creando tarea hija para "${mother.title}"`);
-      
+
       const childTask: Task = {
         id: `t${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         title: `${mother.title} (${today})`,
@@ -290,16 +297,16 @@ const App: React.FC = () => {
         instances: [],
         parentTaskId: mother.id
       };
-      
+
       newChildTasks.push(childTask);
     }
-    
+
     if (newChildTasks.length > 0) {
       console.log(`✅ ${newChildTasks.length} tareas hijas creadas para hoy`);
     } else {
       console.log('ℹ️ No se crearon tareas nuevas hoy');
     }
-    
+
     return newChildTasks;
   };
 
@@ -369,25 +376,25 @@ const App: React.FC = () => {
       if (updatedTask) {
         // Detectar si se completó (arrastró a done)
         const wasCompleted = updatedTask.status !== 'done' && status === 'done';
-        
+
         const taskWithNewStatus = { ...updatedTask, status };
-        
+
         // Si se completó ahora, agregar fecha de finalización
         if (wasCompleted) {
           const today = new Date().toISOString().split('T')[0];
           taskWithNewStatus.completedDate = today;
         }
-        
+
         // Si se desmarca como completada, limpiar fecha
         if (updatedTask.status === 'done' && status !== 'done') {
           taskWithNewStatus.completedDate = null;
         }
-        
+
         const newTasks = tasks.map(t => t.id === draggingId ? taskWithNewStatus : t);
         setTasks(newTasks);
         localStorage.setItem('tasks', JSON.stringify(newTasks));
         sheetsService.saveTaskIncremental('update', taskWithNewStatus);
-        
+
         // Mostrar celebración si se completó
         if (wasCompleted) {
           setCompletedTaskTitle(taskWithNewStatus.title);
@@ -408,7 +415,7 @@ const App: React.FC = () => {
 
   const handleCreateTask = (taskData: Partial<Task>) => {
     console.log('📝 Creando tarea con datos:', taskData);
-    
+
     // Normalizar recurrence si viene con "days" en lugar de "daysOfWeek"
     let normalizedRecurrence = taskData.recurrence;
     if (normalizedRecurrence && (normalizedRecurrence as any).days) {
@@ -421,12 +428,12 @@ const App: React.FC = () => {
       };
       console.log('🔄 Normalizado days a daysOfWeek:', normalizedRecurrence.daysOfWeek);
     }
-    
+
     if (normalizedRecurrence && normalizedRecurrence.enabled === undefined) {
       normalizedRecurrence.enabled = true;
       console.log('🔧 Agregado enabled=true a recurrence');
     }
-    
+
     // Crear tarea MADRE
     const motherTask: Task = {
       id: `t${Date.now()}`,
@@ -446,27 +453,27 @@ const App: React.FC = () => {
       instances: [], // No usamos instances
       parentTaskId: null
     };
-    
+
     console.log('👩 Tarea madre creada:', motherTask);
-    
+
     let newTasks = [motherTask];
-    
+
     // Si es recurrente Y hoy es un día válido, crear tarea HIJA para HOY
     if (motherTask.isRecurring && motherTask.recurrence) {
       const today = getLocalDateString(); // Fecha local
       const startDate = new Date(motherTask.startDate);
       const endDate = new Date(motherTask.recurrence.endDate || motherTask.dueDate);
       const todayDate = new Date(today);
-      
+
       console.log('📅 Verificando si crear tarea para hoy:', {
         today,
         startDate: startDate.toISOString().split('T')[0],
         endDate: endDate.toISOString().split('T')[0]
       });
-      
+
       if (todayDate >= startDate && todayDate <= endDate) {
         const shouldCreateToday = checkIfShouldCreateTask(today, motherTask.recurrence);
-        
+
         if (shouldCreateToday) {
           console.log('✅ Creando tarea hija para HOY');
           const childTask: Task = {
@@ -487,7 +494,7 @@ const App: React.FC = () => {
             instances: [],
             parentTaskId: motherTask.id
           };
-          
+
           newTasks.push(childTask);
           console.log('👶 Tarea hija creada:', childTask);
         } else {
@@ -495,41 +502,41 @@ const App: React.FC = () => {
         }
       }
     }
-    
+
     const allTasks = [...tasks, ...newTasks];
     setTasks(allTasks);
     localStorage.setItem('tasks', JSON.stringify(allTasks));
-    
+
     // Guardar todas en Sheets
     newTasks.forEach(task => {
       sheetsService.saveTaskIncremental('create', task);
     });
-    
+
     setShowNewTaskModal(false);
   };
 
-// Función auxiliar para obtener fecha actual en UTC-5 (Ecuador)
-const getTodayEcuador = (): string => {
-  return getLocalDateString();
-};
+  // Función auxiliar para obtener fecha actual en UTC-5 (Ecuador)
+  const getTodayEcuador = (): string => {
+    return getLocalDateString();
+  };
 
-// Función auxiliar para crear Date object en UTC-5
-const createDateEcuador = (dateString: string): Date => {
-  // Crear fecha en UTC y ajustar a Ecuador
-  const [year, month, day] = dateString.split('-').map(Number);
-  const utcDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0)); // Mediodía UTC para evitar cambios de día
-  return utcDate;
-};
+  // Función auxiliar para crear Date object en UTC-5
+  const createDateEcuador = (dateString: string): Date => {
+    // Crear fecha en UTC y ajustar a Ecuador
+    const [year, month, day] = dateString.split('-').map(Number);
+    const utcDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0)); // Mediodía UTC para evitar cambios de día
+    return utcDate;
+  };
 
-// Función auxiliar para verificar si se debe crear tarea en una fecha
+  // Función auxiliar para verificar si se debe crear tarea en una fecha
   const checkIfShouldCreateTask = (dateString: string, recurrence: any): boolean => {
     // Parsear fecha manualmente para evitar timezone issues
     const [year, month, day] = dateString.split('-').map(Number);
     const date = new Date(year, month - 1, day); // Fecha local
-    
+
     const dayOfWeek = date.getDay(); // 0=Dom, 1=Lun, ..., 6=Sab
     const dayOfMonth = date.getDate(); // 1-31
-    
+
     console.log('🔍 checkIfShouldCreateTask:', {
       fecha: dateString,
       dayOfWeek,
@@ -538,43 +545,43 @@ const createDateEcuador = (dateString: string): Date => {
       daysOfWeek: recurrence.daysOfWeek,
       days: recurrence.days
     });
-    
+
     const dayMap: Record<string, number> = {
       sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
       thursday: 4, friday: 5, saturday: 6
     };
-    
+
     if (recurrence.frequency === 'daily') {
       console.log('  ✅ Diaria - siempre true');
       return true;
     }
-    
+
     if (recurrence.frequency === 'weekly') {
       // Intentar primero con daysOfWeek
       let targetDays = recurrence.daysOfWeek?.map((d: string) => dayMap[d]) || [];
-      
+
       // Si no hay daysOfWeek pero hay days, usar days directamente
       if (targetDays.length === 0 && recurrence.days) {
         targetDays = recurrence.days;
         console.log('  🔄 Usando days directamente:', targetDays);
       }
-      
+
       console.log('  🎯 Días objetivo:', targetDays);
       console.log('  📅 Hoy es día:', dayOfWeek);
-      
+
       const resultado = targetDays.includes(dayOfWeek);
       console.log(`  ${resultado ? '✅' : '❌'} Resultado:`, resultado);
-      
+
       return resultado;
     }
-    
+
     if (recurrence.frequency === 'monthly') {
       const targetDay = recurrence.dayOfMonth || 1;
       const resultado = dayOfMonth === targetDay;
       console.log(`  ${resultado ? '✅' : '❌'} Mensual - Día objetivo: ${targetDay}, Hoy: ${dayOfMonth}`);
       return resultado;
     }
-    
+
     console.log('  ❌ Frecuencia no reconocida');
     return false;
   };
@@ -583,24 +590,24 @@ const createDateEcuador = (dateString: string): Date => {
     // Detectar si la tarea pasó a "done"
     const oldTask = tasks.find(t => t.id === taskData.id);
     const wasCompleted = oldTask && oldTask.status !== 'done' && taskData.status === 'done';
-    
+
     // Si se completó ahora, agregar fecha de finalización
     if (wasCompleted) {
       const today = new Date().toISOString().split('T')[0];
       taskData.completedDate = today;
     }
-    
+
     // Si se desmarca como completada, limpiar fecha
     if (oldTask && oldTask.status === 'done' && taskData.status !== 'done') {
       taskData.completedDate = null;
     }
-    
+
     const newTasks = tasks.map(t => t.id === taskData.id ? taskData : t);
     setTasks(newTasks);
     localStorage.setItem('tasks', JSON.stringify(newTasks));
     sheetsService.saveTaskIncremental('update', taskData);
     setEditingTask(null);
-    
+
     // Mostrar celebración si se completó
     if (wasCompleted) {
       setCompletedTaskTitle(taskData.title);
@@ -612,14 +619,14 @@ const createDateEcuador = (dateString: string): Date => {
   const handleDeleteTask = (task: Task) => {
     // Determinar mensaje según tipo de tarea
     let confirmMessage = '¿Eliminar esta tarea?';
-    
+
     if (task.isRecurring && !task.parentTaskId) {
       // Es tarea MADRE
-      const pendingChildren = tasks.filter(t => 
-        t.parentTaskId === task.id && 
+      const pendingChildren = tasks.filter(t =>
+        t.parentTaskId === task.id &&
         t.status !== 'done'
       );
-      
+
       if (pendingChildren.length > 0) {
         confirmMessage = `Esta es una tarea MADRE con ${pendingChildren.length} tareas hijas pendientes.\n\n¿Eliminar la tarea madre y todas las hijas PENDIENTES?\n(Las finalizadas se mantendrán)`;
       } else {
@@ -629,40 +636,40 @@ const createDateEcuador = (dateString: string): Date => {
       // Es tarea HIJA
       confirmMessage = '¿Eliminar esta tarea?\n(La tarea madre se mantendrá)';
     }
-    
+
     if (confirm(confirmMessage)) {
       let tasksToDelete: Task[] = [task];
-      
+
       // Si es madre, agregar hijas pendientes a eliminar
       if (task.isRecurring && !task.parentTaskId) {
-        const pendingChildren = tasks.filter(t => 
-          t.parentTaskId === task.id && 
+        const pendingChildren = tasks.filter(t =>
+          t.parentTaskId === task.id &&
           t.status !== 'done'
         );
         tasksToDelete = [task, ...pendingChildren];
-        
+
         console.log(`🗑️ Eliminando tarea madre + ${pendingChildren.length} hijas pendientes`);
       }
-      
+
       // Filtrar todas las tareas a eliminar
       const idsToDelete = tasksToDelete.map(t => t.id);
       const newTasks = tasks.filter(t => !idsToDelete.includes(t.id));
-      
+
       setTasks(newTasks);
       localStorage.setItem('tasks', JSON.stringify(newTasks));
-      
+
       // Eliminar de Sheets
       tasksToDelete.forEach(t => {
         sheetsService.saveTaskIncremental('delete', t);
       });
-      
+
       console.log(`✅ ${tasksToDelete.length} tarea(s) eliminada(s)`);
     }
   };
 
   // Filtros
   const handleStatusFilter = (status: Status) => {
-    setSelectedStatuses(prev => 
+    setSelectedStatuses(prev =>
       prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]
     );
   };
@@ -703,51 +710,58 @@ const createDateEcuador = (dateString: string): Date => {
     if (selectedStatuses.length > 0 && !selectedStatuses.includes(task.status)) {
       return false;
     }
-    
+
     // Filtro por prioridad
     if (selectedPriorities.length > 0 && !selectedPriorities.includes(task.priority)) {
       return false;
     }
-    
+
     // Filtro por responsable
-    if (selectedAssignees.length > 0) {
-      const hasAssignee = task.assigneeIds?.some(id => selectedAssignees.includes(id)) ||
-                         (task.assigneeId && selectedAssignees.includes(task.assigneeId));
-      if (!hasAssignee) return false;
+    if (currentUser?.role === 'Analyst') {
+      // SI es analista, SOLO ve sus tareas (fuerza bruta)
+      const isAssigned = task.assigneeIds?.includes(currentUser.id) || task.assigneeId === currentUser.id;
+      if (!isAssigned) return false;
+    } else {
+      // Si es Admin, usa el filtro seleccionado UI
+      if (selectedAssignees.length > 0) {
+        const hasAssignee = task.assigneeIds?.some(id => selectedAssignees.includes(id)) ||
+          (task.assigneeId && selectedAssignees.includes(task.assigneeId));
+        if (!hasAssignee) return false;
+      }
     }
-    
+
     // Filtro por cliente
     if (selectedClients.length > 0 && (!task.clientId || !selectedClients.includes(task.clientId))) {
       return false;
     }
-    
+
     // Búsqueda por nombre de tarea
     if (searchTaskName && !task.title.toLowerCase().includes(searchTaskName.toLowerCase())) {
       return false;
     }
-    
+
     // Filtro por fecha desde (comparación de strings YYYY-MM-DD)
     if (dateFrom && task.dueDate < dateFrom) {
       return false;
     }
-    
+
     // Filtro por fecha hasta (comparación de strings YYYY-MM-DD)
     if (dateTo && task.dueDate > dateTo) {
       return false;
     }
-    
+
     // Filtro de tareas vencidas
     if (showOverdueOnly) {
       const today = new Date().toISOString().split('T')[0];
       const isOverdue = task.status !== 'done' && task.dueDate < today;
       if (!isOverdue) return false;
     }
-    
+
     // Filtro de tareas madre
     if (showRecurringOnly && !task.isRecurring) {
       return false;
     }
-    
+
     return true;
   });
 
@@ -781,57 +795,61 @@ const createDateEcuador = (dateString: string): Date => {
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50 text-gray-900 font-sans">
-      
+
       <aside className="w-64 bg-white border-r border-gray-200 flex flex-col hidden md:flex z-10">
         <div className="p-6 border-b border-gray-100">
-          <div className="flex items-center gap-2 text-[#0078D4] font-bold text-lg">
-            <LayoutDashboard />
-            <span>Tráfico Analítica RAM</span>
+          <div className="flex items-center justify-center">
+            <img src="https://rangle.ec/img/ram.webp" alt="RAM Logo" className="h-10 object-contain" />
           </div>
         </div>
 
         <nav className="flex-1 p-4 space-y-2">
-          <button 
+          <button
             onClick={() => setViewMode(ViewMode.KANBAN)}
-            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${viewMode === ViewMode.KANBAN ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'}`}
+            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${viewMode === ViewMode.KANBAN ? 'bg-ram-cream text-ram-navy font-bold' : 'text-ram-grey hover:bg-gray-50'}`}
           >
             <LayoutDashboard size={18} />
             Tablero Kanban
           </button>
-          <button 
+
+          <button
             onClick={() => setViewMode(ViewMode.GANTT)}
-            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${viewMode === ViewMode.GANTT ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'}`}
+            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${viewMode === ViewMode.GANTT ? 'bg-ram-cream text-ram-navy font-bold' : 'text-ram-grey hover:bg-gray-50'}`}
           >
             <CalendarRange size={18} />
             Cronograma (Gantt)
           </button>
-          <button 
-            onClick={() => setViewMode(ViewMode.TEAM)}
-            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${viewMode === ViewMode.TEAM ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'}`}
-          >
-            <UsersIcon size={18} />
-            Equipo
-          </button>
-          <button 
+
+
+
+          <button
             onClick={() => setViewMode(ViewMode.TABLE)}
-            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${viewMode === ViewMode.TABLE ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'}`}
+            className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${viewMode === ViewMode.TABLE ? 'bg-ram-cream text-ram-navy font-bold' : 'text-ram-grey hover:bg-gray-50'}`}
           >
             <LayoutDashboard size={18} />
             Vista de Tabla
           </button>
-          
-          <div className="pt-2 border-t border-gray-200 mt-2">
-            <button 
-              onClick={() => setViewMode(ViewMode.TEAM_MANAGEMENT)}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${viewMode === ViewMode.TEAM_MANAGEMENT ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'}`}
+
+          <div className="pt-4 mt-4 border-t border-gray-100">
+            <button
+              onClick={() => setViewMode(ViewMode.TEAM)} /* Team View Mode for Cards */
+              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${viewMode === ViewMode.TEAM ? 'bg-ram-cream text-ram-navy font-bold' : 'text-ram-grey hover:bg-gray-50'}`}
             >
               <UsersIcon size={18} />
+              Equipo
+            </button>
+
+            <button
+              onClick={() => setViewMode(ViewMode.TEAM_MANAGEMENT)}
+              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${viewMode === ViewMode.TEAM_MANAGEMENT ? 'bg-ram-cream text-ram-navy font-bold' : 'text-ram-grey hover:bg-gray-50'}`}
+            >
+              <UserCog size={18} />
               Gestión de Equipo
             </button>
-            
-            <button 
+
+            <button
               onClick={() => setViewMode(ViewMode.CLIENT_MANAGEMENT)}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors mt-2 ${viewMode === ViewMode.CLIENT_MANAGEMENT ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'}`}
+              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${viewMode === ViewMode.CLIENT_MANAGEMENT ? 'bg-ram-cream text-ram-navy font-bold' : 'text-ram-grey hover:bg-gray-50'}`}
             >
               <Building2 size={18} />
               Gestión de Clientes
@@ -843,13 +861,13 @@ const createDateEcuador = (dateString: string): Date => {
           <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-4 rounded-xl border border-indigo-100">
             <h4 className="font-semibold text-indigo-900 text-sm mb-1">Reporte Diario</h4>
             <p className="text-xs text-indigo-700 mb-3">Genera el reporte de tareas pendientes.</p>
-            <button 
+            <button
               onClick={handleGenerateReport}
               disabled={isGeneratingEmail}
               className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-70"
             >
               {isGeneratingEmail ? (
-                <div className="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full"/>
+                <div className="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full" />
               ) : (
                 <Mail size={14} />
               )}
@@ -864,7 +882,7 @@ const createDateEcuador = (dateString: string): Date => {
             <p className="text-sm font-bold text-gray-800 truncate">{currentUser.name}</p>
             <p className="text-xs text-gray-500 truncate">{currentUser.role}</p>
           </div>
-          <button 
+          <button
             onClick={handleLogout}
             className="text-gray-400 hover:text-red-500 p-1"
           >
@@ -874,7 +892,7 @@ const createDateEcuador = (dateString: string): Date => {
       </aside>
 
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
-        
+
         <div className="flex justify-between items-center px-8 py-5 bg-white border-b border-gray-200">
           <div>
             <h1 className="text-2xl font-bold text-gray-800">
@@ -890,37 +908,38 @@ const createDateEcuador = (dateString: string): Date => {
             </p>
           </div>
           <div className="flex items-center gap-4">
-             {/* Alerta de tareas vencidas */}
-             {(() => {
-               const today = new Date().toISOString().split('T')[0];
-               const overdueTasks = filteredTasks.filter(t => 
-                 t.status !== 'done' && t.dueDate < today
-               );
-               if (overdueTasks.length > 0) {
-                 return (
-                   <div className="bg-red-50 border border-red-200 px-4 py-2 rounded-lg flex items-center gap-2">
-                     <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                     <span className="text-sm font-medium text-red-700">
-                       {overdueTasks.length} tarea{overdueTasks.length > 1 ? 's' : ''} vencida{overdueTasks.length > 1 ? 's' : ''}
-                     </span>
-                   </div>
-                 );
-               }
-               return null;
-             })()}
-             <button 
-               onClick={() => setShowNewTaskModal(true)}
-               className="bg-[#0078D4] hover:bg-[#006cbd] text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm"
-             >
-               <Plus size={18} />
-               Nueva Tarea
-             </button>
+            {/* Alerta de tareas vencidas */}
+            {(() => {
+              const today = new Date().toISOString().split('T')[0];
+              const overdueTasks = filteredTasks.filter(t =>
+                t.status !== 'done' && t.dueDate < today
+              );
+              if (overdueTasks.length > 0) {
+                return (
+                  <div className="bg-red-50 border border-red-200 px-4 py-2 rounded-lg flex items-center gap-2">
+                    <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                    <span className="text-sm font-medium text-red-700">
+                      {overdueTasks.length} tarea{overdueTasks.length > 1 ? 's' : ''} vencida{overdueTasks.length > 1 ? 's' : ''}
+                    </span>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+            <button
+              onClick={() => setShowNewTaskModal(true)}
+              className="bg-[#0078D4] hover:bg-[#006cbd] text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm"
+            >
+              <Plus size={18} />
+              Nueva Tarea
+            </button>
           </div>
         </div>
 
         <div className="flex-1 overflow-auto p-4 md:p-8 relative">
-          
+
           <Filters
+            currentUser={currentUser!}
             users={users}
             clients={clients}
             selectedStatuses={selectedStatuses}
@@ -956,7 +975,7 @@ const createDateEcuador = (dateString: string): Date => {
                 <div>
                   <p className="text-sm font-semibold text-red-900">Mostrando solo tareas vencidas</p>
                   <p className="text-xs text-red-700">
-                    {selectedAssignees.length > 0 
+                    {selectedAssignees.length > 0
                       ? `Vencidas de: ${selectedAssignees.map(id => users.find(u => u.id === id)?.name.split(' ')[0]).join(', ')}`
                       : 'De todos los usuarios'}
                   </p>
@@ -1000,8 +1019,8 @@ const createDateEcuador = (dateString: string): Date => {
           {viewMode === ViewMode.KANBAN && (
             <div className="flex gap-6 h-full min-w-[1000px] overflow-x-auto pb-4">
               {Object.entries(tasksByStatus).map(([status, statusTasks]) => (
-                <div 
-                  key={status} 
+                <div
+                  key={status}
                   className="flex-1 min-w-[280px] flex flex-col h-full rounded-xl bg-gray-100/50"
                   onDragOver={handleDragOver}
                   onDrop={(e) => handleDrop(e, status as Status)}
@@ -1017,8 +1036,8 @@ const createDateEcuador = (dateString: string): Date => {
                   <div className="p-3 flex-1 overflow-y-auto space-y-3">
                     {statusTasks.map(task => (
                       <div key={task.id} className="relative group">
-                        <TaskCard 
-                          task={task} 
+                        <TaskCard
+                          task={task}
                           users={users}
                           onDragStart={handleDragStart}
                         />
@@ -1050,9 +1069,9 @@ const createDateEcuador = (dateString: string): Date => {
           )}
 
           {viewMode === ViewMode.GANTT && (
-            <GanttView 
-              tasks={filteredTasks} 
-              users={users} 
+            <GanttView
+              tasks={filteredTasks}
+              users={users}
               onEdit={setEditingTask}
               onDelete={handleDeleteTask}
             />
@@ -1076,10 +1095,9 @@ const createDateEcuador = (dateString: string): Date => {
                     {tasks.length > 0 ? tasks.map(task => (
                       <div key={task.id} className="flex items-start gap-2 text-sm border-l-2 border-blue-500 pl-3 py-1">
                         <div className="flex-1">
-                           <p className="font-medium text-gray-800 line-clamp-1">{task.title}</p>
-                           <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                             task.status === 'done' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-                           }`}>{STATUS_LABELS[task.status]}</span>
+                          <p className="font-medium text-gray-800 line-clamp-1">{task.title}</p>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded ${task.status === 'done' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                            }`}>{STATUS_LABELS[task.status]}</span>
                         </div>
                       </div>
                     )) : (
@@ -1088,47 +1106,48 @@ const createDateEcuador = (dateString: string): Date => {
                   </div>
                 </div>
               ))}
-              
+
               {unassignedTasks.length > 0 && (
-                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden border-dashed border-gray-300">
-                   <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center gap-3">
-                     <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-                       <UsersIcon className="text-gray-500" size={20} />
-                     </div>
-                     <h3 className="font-bold text-gray-600">Sin Asignar</h3>
-                   </div>
-                   <div className="p-4 space-y-3">
-                      {unassignedTasks.map(task => (
-                        <div key={task.id} className="opacity-75">
-                           <p className="font-medium text-gray-800 text-sm">{task.title}</p>
-                        </div>
-                      ))}
-                   </div>
-                 </div>
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden border-dashed border-gray-300">
+                  <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+                      <UsersIcon className="text-gray-500" size={20} />
+                    </div>
+                    <h3 className="font-bold text-gray-600">Sin Asignar</h3>
+                  </div>
+                  <div className="p-4 space-y-3">
+                    {unassignedTasks.map(task => (
+                      <div key={task.id} className="opacity-75">
+                        <p className="font-medium text-gray-800 text-sm">{task.title}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           )}
 
           {viewMode === ViewMode.TEAM_MANAGEMENT && (
-            <TeamManagement 
-              users={users} 
+            <TeamManagement
+              users={users}
+              currentUser={currentUser!}
               onCreateUser={handleCreateUser}
               onUpdateUser={handleUpdateUser}
               onDeleteUser={handleDeleteUser}
             />
           )}
-          
+
           {viewMode === ViewMode.CLIENT_MANAGEMENT && (
-            <ClientManagement 
-              clients={clients} 
+            <ClientManagement
+              clients={clients}
               onCreateClient={handleCreateClient}
               onUpdateClient={handleUpdateClient}
               onDeleteClient={handleDeleteClient}
             />
           )}
-          
+
           {viewMode === ViewMode.TABLE && (
-            <TableView 
+            <TableView
               tasks={filteredTasks}
               users={users}
               clients={clients}
@@ -1138,7 +1157,7 @@ const createDateEcuador = (dateString: string): Date => {
           )}
 
         </div>
-        
+
         {emailDraft && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
@@ -1152,26 +1171,26 @@ const createDateEcuador = (dateString: string): Date => {
                     <p className="text-sm text-gray-500">Tráfico Analítica RAM</p>
                   </div>
                 </div>
-                <button 
+                <button
                   onClick={() => setEmailDraft(null)}
                   className="text-gray-400 hover:text-gray-600 transition-colors"
                 >
                   <X size={24} />
                 </button>
               </div>
-              
+
               <div className="flex-1 overflow-y-auto p-6 bg-gray-50 font-mono text-sm leading-relaxed whitespace-pre-wrap text-gray-700">
                 {emailDraft}
               </div>
-              
+
               <div className="p-6 border-t border-gray-100 flex justify-end gap-3 bg-white rounded-b-2xl">
-                <button 
+                <button
                   onClick={() => setEmailDraft(null)}
                   className="px-4 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-lg transition-colors"
                 >
                   Cancelar
                 </button>
-                <a 
+                <a
                   href={`mailto:team@analytics.com?subject=Reporte Diario - Analytics&body=${encodeURIComponent(emailDraft)}`}
                   className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg flex items-center gap-2 shadow-lg shadow-indigo-200 transition-all"
                 >
@@ -1197,7 +1216,7 @@ const createDateEcuador = (dateString: string): Date => {
         )}
 
       </main>
-      
+
       {/* Modal de Celebración */}
       {showCelebration && (
         <div className="fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-300">
@@ -1210,7 +1229,7 @@ const createDateEcuador = (dateString: string): Date => {
               <div className="absolute top-5 left-3/4 w-2 h-2 bg-blue-400 rounded-full animate-ping" style={{ animationDelay: '0.4s' }}></div>
               <div className="absolute top-20 left-1/2 w-2 h-2 bg-purple-400 rounded-full animate-ping" style={{ animationDelay: '0.6s' }}></div>
             </div>
-            
+
             {/* Content */}
             <div className="text-6xl mb-4 animate-bounce">🎉</div>
             <h2 className="text-3xl font-bold text-green-800 mb-2">¡Felicidades!</h2>
@@ -1219,7 +1238,7 @@ const createDateEcuador = (dateString: string): Date => {
               {completedTaskTitle}
             </p>
             <p className="text-sm text-green-600 font-medium">¡Sigue así, excelente trabajo! 💪</p>
-            
+
             {/* Animated checkmark */}
             <div className="mt-6 inline-flex items-center justify-center w-16 h-16 bg-green-500 rounded-full animate-pulse">
               <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1250,7 +1269,7 @@ const TaskModal: React.FC<{
     startDate: getLocalDateString(task?.startDate),
     dueDate: getLocalDateString(task?.dueDate || new Date(Date.now() + 86400000 * 7)),
     tags: task?.tags?.join(', ') || '',
-    
+
     // Recurrencia
     isRecurring: task?.isRecurring || false,
     recurrenceFrequency: (task?.recurrence?.frequency as any) || 'weekly',
@@ -1261,7 +1280,7 @@ const TaskModal: React.FC<{
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const taskData: any = {
       ...task,
       ...formData,
@@ -1270,16 +1289,16 @@ const TaskModal: React.FC<{
       dueDate: getLocalDateString(formData.dueDate),
       tags: formData.tags.split(',').map(t => t.trim()).filter(Boolean)
     };
-    
+
     // Agregar recurrencia si está marcada
     if (formData.isRecurring) {
       const dayMap: Record<DayOfWeek, number> = {
         sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
         thursday: 4, friday: 5, saturday: 6
       };
-      
+
       const daysNumbers = formData.recurrenceDays.map(d => dayMap[d]);
-      
+
       taskData.isRecurring = true;
       taskData.recurrence = {
         enabled: true,
@@ -1293,7 +1312,7 @@ const TaskModal: React.FC<{
       taskData.isRecurring = false;
       taskData.recurrence = null;
     }
-    
+
     console.log('📤 Enviando tarea:', taskData);
     onSave(taskData);
   };
@@ -1306,7 +1325,7 @@ const TaskModal: React.FC<{
         : [...prev.assigneeIds, userId]
     }));
   };
-  
+
   const toggleRecurrenceDay = (day: DayOfWeek) => {
     setFormData(prev => ({
       ...prev,
@@ -1315,7 +1334,7 @@ const TaskModal: React.FC<{
         : [...prev.recurrenceDays, day]
     }));
   };
-  
+
   const dayLabels: Record<DayOfWeek, string> = {
     monday: 'L',
     tuesday: 'M',
@@ -1337,29 +1356,29 @@ const TaskModal: React.FC<{
             </button>
           </div>
         </div>
-        
+
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <input
             type="text"
             placeholder="Título"
             value={formData.title}
-            onChange={(e) => setFormData({...formData, title: e.target.value})}
+            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
             className="w-full px-4 py-2 border rounded focus:ring-2 focus:ring-blue-500"
             required
           />
-          
+
           <textarea
             placeholder="Descripción"
             value={formData.description}
-            onChange={(e) => setFormData({...formData, description: e.target.value})}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             className="w-full px-4 py-2 border rounded focus:ring-2 focus:ring-blue-500"
             rows={3}
           />
-          
+
           <div className="grid grid-cols-2 gap-4">
             <select
               value={formData.status}
-              onChange={(e) => setFormData({...formData, status: e.target.value as Status})}
+              onChange={(e) => setFormData({ ...formData, status: e.target.value as Status })}
               className="px-4 py-2 border rounded focus:ring-2 focus:ring-blue-500"
             >
               <option value="todo">Por Hacer</option>
@@ -1367,10 +1386,10 @@ const TaskModal: React.FC<{
               <option value="review">En Revisión</option>
               <option value="done">Finalizado</option>
             </select>
-            
+
             <select
               value={formData.priority}
-              onChange={(e) => setFormData({...formData, priority: e.target.value as Priority})}
+              onChange={(e) => setFormData({ ...formData, priority: e.target.value as Priority })}
               className="px-4 py-2 border rounded focus:ring-2 focus:ring-blue-500"
             >
               <option value="low">Baja</option>
@@ -1379,10 +1398,10 @@ const TaskModal: React.FC<{
               <option value="critical">Crítica</option>
             </select>
           </div>
-          
+
           <select
             value={formData.clientId || ''}
-            onChange={(e) => setFormData({...formData, clientId: e.target.value || null})}
+            onChange={(e) => setFormData({ ...formData, clientId: e.target.value || null })}
             className="w-full px-4 py-2 border rounded focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Sin cliente</option>
@@ -1390,7 +1409,7 @@ const TaskModal: React.FC<{
               <option key={client.id} value={client.id}>{client.name}</option>
             ))}
           </select>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Responsables ({formData.assigneeIds.length} seleccionados)
@@ -1410,7 +1429,7 @@ const TaskModal: React.FC<{
               ))}
             </div>
           </div>
-          
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -1419,7 +1438,7 @@ const TaskModal: React.FC<{
               <input
                 type="date"
                 value={formData.startDate}
-                onChange={(e) => setFormData({...formData, startDate: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
                 className="w-full px-4 py-2 border rounded focus:ring-2 focus:ring-blue-500"
                 required
               />
@@ -1431,7 +1450,7 @@ const TaskModal: React.FC<{
               <input
                 type="date"
                 value={formData.dueDate}
-                onChange={(e) => setFormData({...formData, dueDate: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
                 className="w-full px-4 py-2 border rounded focus:ring-2 focus:ring-blue-500"
                 required={!formData.isRecurring}
                 disabled={formData.isRecurring}
@@ -1443,22 +1462,22 @@ const TaskModal: React.FC<{
               )}
             </div>
           </div>
-          
+
           <input
             type="text"
             placeholder="Tags (separados por coma)"
             value={formData.tags}
-            onChange={(e) => setFormData({...formData, tags: e.target.value})}
+            onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
             className="w-full px-4 py-2 border rounded focus:ring-2 focus:ring-blue-500"
           />
-          
+
           {/* RECURRENCIA */}
           <div className="border-t pt-4">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
                 checked={formData.isRecurring}
-                onChange={(e) => setFormData({...formData, isRecurring: e.target.checked})}
+                onChange={(e) => setFormData({ ...formData, isRecurring: e.target.checked })}
                 className="w-5 h-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
               />
               <div className="flex items-center gap-2">
@@ -1468,16 +1487,16 @@ const TaskModal: React.FC<{
                 <span className="font-medium text-gray-900">Tarea Recurrente</span>
               </div>
             </label>
-            
+
             {formData.isRecurring && (
               <div className="mt-4 ml-7 space-y-4 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
-                
+
                 {/* Frecuencia */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Frecuencia</label>
                   <select
                     value={formData.recurrenceFrequency}
-                    onChange={(e) => setFormData({...formData, recurrenceFrequency: e.target.value as any})}
+                    onChange={(e) => setFormData({ ...formData, recurrenceFrequency: e.target.value as any })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                   >
                     <option value="daily">Diaria</option>
@@ -1485,7 +1504,7 @@ const TaskModal: React.FC<{
                     <option value="monthly">Mensual</option>
                   </select>
                 </div>
-                
+
                 {/* Días de la semana (solo si es semanal) */}
                 {formData.recurrenceFrequency === 'weekly' && (
                   <div>
@@ -1498,11 +1517,10 @@ const TaskModal: React.FC<{
                           key={day}
                           type="button"
                           onClick={() => toggleRecurrenceDay(day)}
-                          className={`w-10 h-10 rounded-full font-medium text-sm transition-colors ${
-                            formData.recurrenceDays.includes(day)
-                              ? 'bg-indigo-600 text-white'
-                              : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                          }`}
+                          className={`w-10 h-10 rounded-full font-medium text-sm transition-colors ${formData.recurrenceDays.includes(day)
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                            }`}
                         >
                           {dayLabels[day]}
                         </button>
@@ -1510,7 +1528,7 @@ const TaskModal: React.FC<{
                     </div>
                   </div>
                 )}
-                
+
                 {/* Día del mes (solo si es mensual) */}
                 {formData.recurrenceFrequency === 'monthly' && (
                   <div>
@@ -1519,16 +1537,16 @@ const TaskModal: React.FC<{
                     </label>
                     <select
                       value={formData.recurrenceDayOfMonth}
-                      onChange={(e) => setFormData({...formData, recurrenceDayOfMonth: parseInt(e.target.value)})}
+                      onChange={(e) => setFormData({ ...formData, recurrenceDayOfMonth: parseInt(e.target.value) })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                     >
-                      {Array.from({length: 31}, (_, i) => i + 1).map(day => (
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
                         <option key={day} value={day}>Día {day}</option>
                       ))}
                     </select>
                   </div>
                 )}
-                
+
                 {/* Fecha final */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1537,7 +1555,7 @@ const TaskModal: React.FC<{
                   <input
                     type="date"
                     value={formData.recurrenceEndDate}
-                    onChange={(e) => setFormData({...formData, recurrenceEndDate: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, recurrenceEndDate: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                     min={formData.startDate}
                     required={formData.isRecurring}
@@ -1546,7 +1564,7 @@ const TaskModal: React.FC<{
                     Se crearán tareas hasta esta fecha
                   </p>
                 </div>
-                
+
                 <div className="text-xs text-indigo-700 bg-indigo-100 p-3 rounded">
                   <strong>💡 Cómo funciona:</strong>
                   <ul className="mt-1 space-y-1">
@@ -1558,7 +1576,7 @@ const TaskModal: React.FC<{
               </div>
             )}
           </div>
-          
+
           <div className="flex justify-end gap-3 pt-4 border-t">
             <button
               type="button"

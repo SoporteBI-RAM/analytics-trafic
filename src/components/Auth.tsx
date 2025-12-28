@@ -22,15 +22,15 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     try {
       // Cargar usuarios de Sheets
       let users = await sheetsService.getUsers();
-      
+
       // Si no hay usuarios en Sheets, usar MOCK_USERS
       if (users.length === 0) {
         users = MOCK_USERS;
         console.log('⚠️ Usando usuarios mock (Sheets vacío)');
       }
-      
+
       const user = users.find(u => u.email === email && u.password === password);
-      
+
       if (user) {
         const { password, ...userWithoutPassword } = user;
         onLogin(userWithoutPassword as User);
@@ -40,7 +40,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     } catch (err) {
       console.error('❌ Error cargando usuarios:', err);
       setError('Error de conexión. Usando datos locales.');
-      
+
       // Fallback a MOCK_USERS
       const user = MOCK_USERS.find(u => u.email === email && u.password === password);
       if (user) {
@@ -58,8 +58,12 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 px-4">
       <div className="bg-white p-10 rounded-2xl shadow-xl max-w-md w-full border border-gray-100">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl mb-4 shadow-lg">
-            <LayoutDashboard className="text-white" size={32} />
+          <div className="flex justify-center mb-6">
+            <img
+              src="https://rangle.ec/img/ram.webp"
+              alt="RAM Logo"
+              className="h-24 object-contain"
+            />
           </div>
           <h1 className="text-3xl font-bold text-gray-800 mb-2">Tráfico Analítica RAM</h1>
           <p className="text-gray-500">Sistema de Gestión de Tareas</p>
@@ -77,7 +81,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
               required
             />
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Contraseña</label>
             <input
@@ -89,7 +93,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
               required
             />
           </div>
-          
+
           {error && (
             <div className="text-red-600 text-sm bg-red-50 p-3 rounded-lg border border-red-200">
               {error}

@@ -9,7 +9,7 @@ export const MOCK_USERS: User[] = [
     email: 'santiago@ram.com',
     password: 'ram2024',
     avatar: 'https://picsum.photos/seed/santiago/200/200',
-    role: 'Manager'
+    role: 'Admin'
   },
   {
     id: 'u2',
@@ -17,7 +17,7 @@ export const MOCK_USERS: User[] = [
     email: 'usuario2@ram.com',
     password: 'ram2024',
     avatar: 'https://picsum.photos/seed/user2/200/200',
-    role: 'Data Scientist'
+    role: 'Analyst'
   },
   {
     id: 'u3',
@@ -25,7 +25,7 @@ export const MOCK_USERS: User[] = [
     email: 'usuario3@ram.com',
     password: 'ram2024',
     avatar: 'https://picsum.photos/seed/user3/200/200',
-    role: 'Data Engineer'
+    role: 'Analyst'
   },
   {
     id: 'u4',

@@ -4,16 +4,18 @@ import { Users, Plus, Edit, Trash2, Save, X, Upload } from 'lucide-react';
 
 interface TeamManagementProps {
   users: User[];
+  currentUser: User;
   onCreateUser: (user: User) => void;
   onUpdateUser: (user: User) => void;
   onDeleteUser: (userId: string) => void;
 }
 
-export const TeamManagement: React.FC<TeamManagementProps> = ({ 
-  users, 
-  onCreateUser, 
-  onUpdateUser, 
-  onDeleteUser 
+export const TeamManagement: React.FC<TeamManagementProps> = ({
+  users,
+  currentUser,
+  onCreateUser,
+  onUpdateUser,
+  onDeleteUser
 }) => {
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -33,7 +35,7 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
         id: user.id,
         name: user.name,
         email: user.email,
-        password: user.password || '',
+        password: '', // Never preload password
         role: user.role,
         avatar: user.avatar
       });
@@ -69,18 +71,22 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (editingUser) {
-      // Editar usuario existente
+      // Update existing user
+      // If password is empty string, it typically means "don't change" in backend logic,
+      // but here we just pass whatever. The parent handler should decide if empty password = no change.
+      // Assuming parent handles this logic or we keep existing password if empty.
+      // For now, consistent with previous logic, we pass what we have.
       onUpdateUser({ ...formData });
     } else {
-      // Crear nuevo usuario
+      // Create new user
       if (!formData.avatar) {
         formData.avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.name)}&background=random`;
       }
       onCreateUser({ ...formData });
     }
-    
+
     handleCloseModal();
   };
 
@@ -90,6 +96,14 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
     }
   };
 
+  const canEdit = (targetUser: User) => {
+    return currentUser.role === 'Admin' || currentUser.id === targetUser.id;
+  };
+
+  const canDelete = () => {
+    return currentUser.role === 'Admin';
+  };
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -97,48 +111,61 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
           <h2 className="text-2xl font-bold text-gray-800">Gestión de Equipo</h2>
           <p className="text-sm text-gray-500 mt-1">{users.length} miembros del equipo</p>
         </div>
-        <button
-          onClick={() => handleOpenModal()}
-          className="bg-[#0078D4] hover:bg-[#006cbd] text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm"
-        >
-          <Plus size={18} />
-          Nuevo Miembro
-        </button>
+        {currentUser.role === 'Admin' && (
+          <button
+            onClick={() => handleOpenModal()}
+            className="bg-[#0078D4] hover:bg-[#006cbd] text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm"
+          >
+            <Plus size={18} />
+            Nuevo Miembro
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {users.map(user => (
           <div key={user.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
             <div className="flex items-start gap-4">
-              <img 
-                src={user.avatar} 
+              <img
+                src={user.avatar}
                 alt={user.name}
                 className="w-16 h-16 rounded-full object-cover border-2 border-gray-100"
               />
               <div className="flex-1 min-w-0">
                 <h3 className="font-bold text-gray-800 truncate">{user.name}</h3>
                 <p className="text-sm text-gray-500 truncate">{user.email}</p>
-                <span className="inline-block mt-2 bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full">
-                  {user.role}
-                </span>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  <span className="inline-block bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full">
+                    {user.role}
+                  </span>
+                  {currentUser.id === user.id && (
+                    <span className="inline-block bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full border border-green-200">
+                      Tú
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
-            
-            <div className="flex gap-2 mt-4 pt-4 border-t border-gray-100">
-              <button
-                onClick={() => handleOpenModal(user)}
-                className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-              >
-                <Edit size={14} />
-                Editar
-              </button>
-              <button
-                onClick={() => handleDelete(user.id)}
-                className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-              >
-                <Trash2 size={14} />
-                Eliminar
-              </button>
+
+            <div className="flex gap-2 mt-4 pt-4 border-t border-gray-100 min-h-[52px]">
+              {canEdit(user) && (
+                <button
+                  onClick={() => handleOpenModal(user)}
+                  className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                >
+                  <Edit size={14} />
+                  Editar
+                </button>
+              )}
+              {canDelete() && (
+                <button
+                  onClick={() => handleDelete(user.id)}
+                  className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                >
+                  <Trash2 size={14} />
+                  Eliminar
+                </button>
+              )}
             </div>
           </div>
         ))}
@@ -194,9 +221,10 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
                 <input
                   type="email"
                   value={formData.email}
+                  disabled={!!editingUser} // Email typically immutable or restricted
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="usuario@rangle.ec"
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${editingUser ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
+                  placeholder="usuario@ram.com"
                   required
                 />
               </div>
@@ -212,6 +240,7 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                   required={!editingUser}
+                  placeholder={editingUser ? '••••••••' : ''}
                 />
               </div>
 
@@ -222,12 +251,14 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
                   value={formData.role}
                   onChange={(e) => setFormData({ ...formData, role: e.target.value as User['role'] })}
                   className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  disabled={currentUser.role !== 'Admin'} // Only Admin can change roles
                 >
-                  <option value="Manager">Manager</option>
-                  <option value="Data Scientist">Data Scientist</option>
-                  <option value="Data Engineer">Data Engineer</option>
+                  <option value="Admin">Admin</option>
                   <option value="Analyst">Analyst</option>
                 </select>
+                {currentUser.role !== 'Admin' && (
+                  <p className="text-xs text-gray-500 mt-1">Solo los administradores pueden cambiar roles.</p>
+                )}
               </div>
 
               {/* Botones */}

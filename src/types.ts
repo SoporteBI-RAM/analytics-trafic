@@ -9,7 +9,7 @@ export interface User {
   email: string;
   password?: string;
   avatar: string;
-  role: 'Manager' | 'Data Scientist' | 'Data Engineer' | 'Analyst';
+  role: 'Admin' | 'Analyst';
 }
 
 export interface Client {
@@ -45,7 +45,7 @@ export interface Task {
   dueDate: string;
   tags: string[];
   completedDate?: string | null;
-  
+
   // Recurrencia
   isRecurring?: boolean;
   recurrence?: RecurrenceConfig;
