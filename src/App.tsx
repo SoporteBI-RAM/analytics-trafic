@@ -6,6 +6,8 @@ import { Filters } from './components/Filters';
 import { TeamManagement } from './components/TeamManagement';
 import { ClientManagement } from './components/ClientManagement';
 import { TableView } from './components/TableView';
+import { ClientPerformance } from './components/ClientPerformance';
+import { UserPerformance } from './components/UserPerformance';
 import { User, Task, Status, ViewMode, Priority, Client, DayOfWeek } from './types';
 import { MOCK_USERS, MOCK_CLIENTS, STATUS_LABELS, STATUS_COLORS } from './constants';
 import { generateDailyReport } from './services/geminiService';
@@ -24,7 +26,9 @@ import {
   Edit,
   Trash2,
   Save,
-  Building2
+  Building2,
+  BarChart3,
+  Award
 } from 'lucide-react';
 
 // Helper para obtener fecha local en formato YYYY-MM-DD SIEMPRE en UTC-5 (Ecuador)
@@ -767,6 +771,55 @@ const App: React.FC = () => {
     return true;
   });
 
+  // Tareas filtradas para vistas de rendimiento (SIN filtro de estado)
+  // Esto permite ver el % real de cumplimiento incluyendo tareas finalizadas
+  const performanceFilteredTasks = tasks.filter(task => {
+    // Filtro de responsable (Analyst auto-filtrado)
+    if (currentUser.role === 'Analyst') {
+      const isAssigned = task.assigneeIds?.includes(currentUser.id) || task.assigneeId === currentUser.id;
+      if (!isAssigned) return false;
+    } else if (selectedAssignees.length > 0) {
+      const hasAssignee = task.assigneeIds?.some(id => selectedAssignees.includes(id)) ||
+        (task.assigneeId && selectedAssignees.includes(task.assigneeId));
+      if (!hasAssignee) return false;
+    }
+
+    // Filtro de prioridad
+    if (selectedPriorities.length > 0 && !selectedPriorities.includes(task.priority)) {
+      return false;
+    }
+
+    // Filtro de cliente
+    if (selectedClients.length > 0) {
+      if (!task.clientId || !selectedClients.includes(task.clientId)) {
+        return false;
+      }
+    }
+
+    // Filtro de búsqueda
+    if (searchTaskName && !task.title.toLowerCase().includes(searchTaskName.toLowerCase())) {
+      return false;
+    }
+
+    // Filtro de rango de fechas
+    if (dateFrom && task.dueDate < dateFrom) return false;
+    if (dateTo && task.dueDate > dateTo) return false;
+
+    // Filtro de vencidas
+    if (showOverdueOnly) {
+      const today = new Date().toISOString().split('T')[0];
+      const isOverdue = task.status !== 'done' && task.dueDate < today;
+      if (!isOverdue) return false;
+    }
+
+    // Filtro de tareas madre
+    if (showRecurringOnly && !task.isRecurring) {
+      return false;
+    }
+
+    return true;
+  });
+
   // Filtrar tareas madre (solo mostrar tareas hijas individuales en Kanban)
   const displayTasks = filteredTasks.filter(t => !t.isRecurring || t.parentTaskId);
 
@@ -876,6 +929,22 @@ const App: React.FC = () => {
               <Building2 size={18} />
               Gestión de Clientes
             </button>
+
+            <button
+              onClick={() => { setViewMode(ViewMode.CLIENT_PERFORMANCE); setIsMobileMenuOpen(false); }}
+              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${viewMode === ViewMode.CLIENT_PERFORMANCE ? 'bg-ram-cream text-ram-navy font-bold' : 'text-ram-grey hover:bg-gray-50'}`}
+            >
+              <BarChart3 size={18} />
+              Rendimiento Clientes
+            </button>
+
+            <button
+              onClick={() => { setViewMode(ViewMode.USER_PERFORMANCE); setIsMobileMenuOpen(false); }}
+              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${viewMode === ViewMode.USER_PERFORMANCE ? 'bg-ram-cream text-ram-navy font-bold' : 'text-ram-grey hover:bg-gray-50'}`}
+            >
+              <Award size={18} />
+              Rendimiento Usuarios
+            </button>
           </div>
         </nav>
 
@@ -935,6 +1004,8 @@ const App: React.FC = () => {
                 {viewMode === ViewMode.TABLE && 'Tabla'}
                 {viewMode === ViewMode.TEAM_MANAGEMENT && 'Gestión Equipo'}
                 {viewMode === ViewMode.CLIENT_MANAGEMENT && 'Clientes'}
+                {viewMode === ViewMode.CLIENT_PERFORMANCE && 'Rendimiento Clientes'}
+                {viewMode === ViewMode.USER_PERFORMANCE && 'Rendimiento Usuarios'}
               </h1>
               <p className="hidden md:block text-sm text-gray-500 mt-1">
                 Mostrando {filteredTasks.length} de {tasks.length} tareas
@@ -1193,6 +1264,22 @@ const App: React.FC = () => {
               clients={clients}
               onEditTask={(task) => setEditingTask(task)}
               onDeleteTask={handleDeleteTask}
+            />
+          )}
+
+          {viewMode === ViewMode.CLIENT_PERFORMANCE && (
+            <ClientPerformance
+              tasks={performanceFilteredTasks}
+              clients={clients}
+              currentUser={currentUser!}
+            />
+          )}
+
+          {viewMode === ViewMode.USER_PERFORMANCE && (
+            <UserPerformance
+              tasks={performanceFilteredTasks}
+              users={users}
+              currentUser={currentUser!}
             />
           )}
 
