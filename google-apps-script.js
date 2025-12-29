@@ -309,10 +309,17 @@ function processRecurringTasksDaily() {
       }
 
       // Verificar si ya existe tarea hija para hoy
-      const existsToday = tasks.some(t =>
-        t[colParentTaskId] === row[colId] &&
-        t[colStartDate] === today
-      );
+      const existsToday = tasks.some(t => {
+        if (t[colParentTaskId] !== row[colId]) return false;
+
+        // Convertir la fecha de la tarea existente a string YYYY-MM-DD para comparar
+        let taskDateStr = t[colStartDate];
+        if (taskDateStr instanceof Date) {
+          taskDateStr = Utilities.formatDate(taskDateStr, 'GMT-5', 'yyyy-MM-dd');
+        }
+
+        return taskDateStr === today;
+      });
 
       if (existsToday) {
         Logger.log(`  ℹ️ "${row[colTitle]}" - Ya existe tarea para hoy`);
