@@ -80,6 +80,11 @@ const App: React.FC = () => {
   const [showCelebration, setShowCelebration] = useState(false);
   const [completedTaskTitle, setCompletedTaskTitle] = useState('');
 
+  // Ref para controlar el cooldown de sincronización
+  // Evita que la sync sobrescriba cambios locales recientes
+  const lastWriteTime = React.useRef<number>(0);
+  const COOLDOWN_MS = 15000; // 15 segundos de espera tras escribir
+
   // Hook de notificaciones para feedback instantáneo
   const { notifications, addNotification, removeNotification } = useNotifications();
 
@@ -90,6 +95,8 @@ const App: React.FC = () => {
     },
     onSyncSuccess: (op) => {
       console.log(`✅ Tarea ${op.operation} sincronizada`);
+      // Extender cooldown para dar tiempo a que Sheets propague
+      lastWriteTime.current = Date.now();
     },
     onSyncError: (error, op) => {
       console.error(`❌ Error sincronizando tarea ${op.operation}:`, error);
@@ -103,6 +110,7 @@ const App: React.FC = () => {
     },
     onSyncSuccess: (op) => {
       console.log(`✅ Usuario ${op.operation} sincronizado`);
+      lastWriteTime.current = Date.now();
     },
     onSyncError: (error, op) => {
       console.error(`❌ Error sincronizando usuario ${op.operation}:`, error);
@@ -116,6 +124,7 @@ const App: React.FC = () => {
     },
     onSyncSuccess: (op) => {
       console.log(`✅ Cliente ${op.operation} sincronizado`);
+      lastWriteTime.current = Date.now();
     },
     onSyncError: (error, op) => {
       console.error(`❌ Error sincronizando cliente ${op.operation}:`, error);
@@ -127,6 +136,7 @@ const App: React.FC = () => {
   const tasks = tasksOptimistic.data;
   const users = usersOptimistic.data;
   const clients = clientsOptimistic.data;
+  const setTasks = tasksOptimistic.setAll; // Alias para compatibilidad con código legacy
 
   // Filtros
   const [selectedStatuses, setSelectedStatuses] = useState<Status[]>([]);
@@ -196,6 +206,12 @@ const App: React.FC = () => {
   }, []);
 
   const syncDataFromSheets = async () => {
+    // Chequeo de seguridad: Cooldown
+    if (Date.now() - lastWriteTime.current < COOLDOWN_MS) {
+      console.log('⏳ Saltando sync por actividad local reciente (Cooldown activo)');
+      return;
+    }
+
     try {
       const [loadedTasks, loadedUsers, loadedClients] = await Promise.all([
         sheetsService.getTasks(),
@@ -373,7 +389,10 @@ const App: React.FC = () => {
   };
 
   const handleCreateUser = async (user: User) => {
-    // 1️⃣ Actualizar INMEDIATAMENTE
+    // 1️⃣ Bloqueo inmediato
+    lastWriteTime.current = Date.now();
+
+    // 2️⃣ Actualizar INMEDIATAMENTE
     usersOptimistic.create(user);
     localStorage.setItem('users', JSON.stringify([...users, user]));
 
@@ -384,7 +403,10 @@ const App: React.FC = () => {
   };
 
   const handleUpdateUser = async (user: User) => {
-    // 1️⃣ Actualizar INMEDIATAMENTE
+    // 1️⃣ Bloqueo inmediato
+    lastWriteTime.current = Date.now();
+
+    // 2️⃣ Actualizar INMEDIATAMENTE
     usersOptimistic.update(user);
     const newUsers = users.map(u => u.id === user.id ? user : u);
     localStorage.setItem('users', JSON.stringify(newUsers));
@@ -397,7 +419,10 @@ const App: React.FC = () => {
     const userToDelete = users.find(u => u.id === userId);
     if (!userToDelete) return;
 
-    // 1️⃣ Eliminar INMEDIATAMENTE
+    // 1️⃣ Bloqueo inmediato
+    lastWriteTime.current = Date.now();
+
+    // 2️⃣ Eliminar INMEDIATAMENTE
     usersOptimistic.remove(userToDelete);
     const newUsers = users.filter(u => u.id !== userId);
     localStorage.setItem('users', JSON.stringify(newUsers));
@@ -407,7 +432,10 @@ const App: React.FC = () => {
   };
 
   const handleCreateClient = async (client: Client) => {
-    // 1️⃣ Actualizar INMEDIATAMENTE
+    // 1️⃣ Bloqueo inmediato
+    lastWriteTime.current = Date.now();
+
+    // 2️⃣ Actualizar INMEDIATAMENTE
     clientsOptimistic.create(client);
     localStorage.setItem('clients', JSON.stringify([...clients, client]));
 
@@ -416,7 +444,10 @@ const App: React.FC = () => {
   };
 
   const handleUpdateClient = async (client: Client) => {
-    // 1️⃣ Actualizar INMEDIATAMENTE
+    // 1️⃣ Bloqueo inmediato
+    lastWriteTime.current = Date.now();
+
+    // 2️⃣ Actualizar INMEDIATAMENTE
     clientsOptimistic.update(client);
     const newClients = clients.map(c => c.id === client.id ? client : c);
     localStorage.setItem('clients', JSON.stringify(newClients));
@@ -429,7 +460,10 @@ const App: React.FC = () => {
     const clientToDelete = clients.find(c => c.id === clientId);
     if (!clientToDelete) return;
 
-    // 1️⃣ Eliminar INMEDIATAMENTE
+    // 1️⃣ Bloqueo inmediato
+    lastWriteTime.current = Date.now();
+
+    // 2️⃣ Eliminar INMEDIATAMENTE
     clientsOptimistic.remove(clientToDelete);
     const newClients = clients.filter(c => c.id !== clientId);
     localStorage.setItem('clients', JSON.stringify(newClients));
@@ -469,7 +503,11 @@ const App: React.FC = () => {
           taskWithNewStatus.completedDate = null;
         }
 
-        // 1️⃣ Actualizar INMEDIATAMENTE
+
+        // 1️⃣ Bloqueo inmediato
+        lastWriteTime.current = Date.now();
+
+        // 2️⃣ Actualizar INMEDIATAMENTE
         tasksOptimistic.update(taskWithNewStatus);
         const newTasks = tasks.map(t => t.id === draggingId ? taskWithNewStatus : t);
         localStorage.setItem('tasks', JSON.stringify(newTasks));
@@ -522,7 +560,7 @@ const App: React.FC = () => {
       id: `t${Date.now()}`,
       title: taskData.title || '',
       description: taskData.description || '',
-      status: 'todo', // La madre siempre empieza en todo
+      status: taskData.status || 'todo',
       priority: taskData.priority || 'medium',
       assigneeId: taskData.assigneeIds?.[0] || null,
       assigneeIds: taskData.assigneeIds || [],
@@ -563,7 +601,7 @@ const App: React.FC = () => {
             id: `t${Date.now()}_child_${today}`,
             title: `${motherTask.title} (${today})`,
             description: motherTask.description,
-            status: 'todo',
+            status: motherTask.status,
             priority: motherTask.priority,
             assigneeId: motherTask.assigneeId,
             assigneeIds: motherTask.assigneeIds,
@@ -586,7 +624,10 @@ const App: React.FC = () => {
       }
     }
 
-    // 1️⃣ Agregar INMEDIATAMENTE (optimistic update)
+    // 1️⃣ Bloqueo inmediato
+    lastWriteTime.current = Date.now();
+
+    // 2️⃣ Agregar INMEDIATAMENTE (optimistic update)
     newTasks.forEach(task => {
       tasksOptimistic.create(task);
     });
@@ -693,7 +734,12 @@ const App: React.FC = () => {
       taskData.completedDate = null;
     }
 
-    // 1️⃣ Actualizar INMEDIATAMENTE
+    taskData.completedDate = null;
+
+    // 1️⃣ Bloqueo inmediato
+    lastWriteTime.current = Date.now();
+
+    // 2️⃣ Actualizar INMEDIATAMENTE
     tasksOptimistic.update(taskData);
     const newTasks = tasks.map(t => t.id === taskData.id ? taskData : t);
     localStorage.setItem('tasks', JSON.stringify(newTasks));
@@ -746,7 +792,10 @@ const App: React.FC = () => {
         console.log(`🗑️ Eliminando tarea madre + ${pendingChildren.length} hijas pendientes`);
       }
 
-      // 1️⃣ Eliminar INMEDIATAMENTE
+      // 1️⃣ Bloqueo inmediato
+      lastWriteTime.current = Date.now();
+
+      // 2️⃣ Eliminar INMEDIATAMENTE
       tasksToDelete.forEach(t => {
         tasksOptimistic.remove(t);
       });
