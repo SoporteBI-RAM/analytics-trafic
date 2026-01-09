@@ -147,6 +147,7 @@ const App: React.FC = () => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [showOverdueOnly, setShowOverdueOnly] = useState(false);
+  const [showMotherTasks, setShowMotherTasks] = useState(false); // Por defecto ocultas
   const [showRecurringOnly, setShowRecurringOnly] = useState(false);
 
   // Función para manejar login y auto-seleccionar el usuario en filtros
@@ -851,6 +852,7 @@ const App: React.FC = () => {
     setDateFrom('');
     setDateTo('');
     setShowOverdueOnly(false);
+    setShowMotherTasks(false); // Volver a ocultar tareas madre
     setShowRecurringOnly(false);
   };
 
@@ -938,8 +940,21 @@ const App: React.FC = () => {
     return true;
   });
 
-  // Filtrar tareas madre (solo mostrar tareas hijas individuales en Kanban)
-  const displayTasks = filteredTasks.filter(t => !t.isRecurring || t.parentTaskId);
+  // Filtrar tareas madre según el estado showMotherTasks
+  const displayTasks = filteredTasks.filter(t => {
+    // Si showMotherTasks está desactivado (por defecto), ocultar tareas madre
+    if (!showMotherTasks && t.isRecurring && !t.parentTaskId) {
+      return false; // Ocultar tarea madre
+    }
+
+    // Si showMotherTasks está activado y showRecurringOnly está activo, solo mostrar tareas madre
+    if (showMotherTasks && showRecurringOnly) {
+      return t.isRecurring && !t.parentTaskId; // Solo tareas madre
+    }
+
+    // Mostrar todas las tareas (incluidas madres e hijas)
+    return true;
+  });
 
   const tasksByStatus = {
     todo: displayTasks.filter(t => t.status === 'todo'),
@@ -1179,6 +1194,7 @@ const App: React.FC = () => {
             dateFrom={dateFrom}
             dateTo={dateTo}
             showOverdueOnly={showOverdueOnly}
+            showMotherTasks={showMotherTasks}
             showRecurringOnly={showRecurringOnly}
             onStatusChange={handleStatusFilter}
             onPriorityChange={handlePriorityFilter}
@@ -1188,6 +1204,7 @@ const App: React.FC = () => {
             onDateFromChange={setDateFrom}
             onDateToChange={setDateTo}
             onOverdueToggle={setShowOverdueOnly}
+            onMotherTasksToggle={setShowMotherTasks}
             onRecurringToggle={setShowRecurringOnly}
             onClearFilters={handleClearFilters}
           />

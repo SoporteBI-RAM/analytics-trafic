@@ -14,6 +14,7 @@ interface FiltersProps {
   dateFrom: string;
   dateTo: string;
   showOverdueOnly: boolean;
+  showMotherTasks: boolean;
   showRecurringOnly: boolean;
   onStatusChange: (status: Status) => void;
   onPriorityChange: (priority: Priority) => void;
@@ -23,6 +24,7 @@ interface FiltersProps {
   onDateFromChange: (date: string) => void;
   onDateToChange: (date: string) => void;
   onOverdueToggle: (value: boolean) => void;
+  onMotherTasksToggle: (value: boolean) => void;
   onRecurringToggle: (value: boolean) => void;
   onClearFilters: () => void;
 }
@@ -39,6 +41,7 @@ export const Filters: React.FC<FiltersProps> = ({
   dateFrom,
   dateTo,
   showOverdueOnly,
+  showMotherTasks,
   showRecurringOnly,
   onStatusChange,
   onPriorityChange,
@@ -48,6 +51,7 @@ export const Filters: React.FC<FiltersProps> = ({
   onDateFromChange,
   onDateToChange,
   onOverdueToggle,
+  onMotherTasksToggle,
   onRecurringToggle,
   onClearFilters
 }) => {
@@ -273,6 +277,7 @@ export const Filters: React.FC<FiltersProps> = ({
 
             {/* Toggles */}
             <div className="flex items-start gap-4 flex-wrap">
+              {/* Solo vencidas */}
               <label className="flex items-center gap-3 cursor-pointer hover:bg-white p-2 rounded-lg border border-transparent hover:border-red-100/50 hover:shadow-sm transition-all group">
                 <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${showOverdueOnly ? 'bg-red-500 border-red-500' : 'border-gray-300 bg-white'}`}>
                   {showOverdueOnly && <Check size={12} className="text-white" />}
@@ -291,23 +296,47 @@ export const Filters: React.FC<FiltersProps> = ({
                 </div>
               </label>
 
-              <label className="flex items-center gap-3 cursor-pointer hover:bg-white p-2 rounded-lg border border-transparent hover:border-indigo-100/50 hover:shadow-sm transition-all group">
-                <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${showRecurringOnly ? 'bg-indigo-500 border-indigo-500' : 'border-gray-300 bg-white'}`}>
-                  {showRecurringOnly && <Check size={12} className="text-white" />}
+              {/* Ver/Ocultar tareas madre */}
+              <label className="flex items-center gap-3 cursor-pointer hover:bg-white p-2 rounded-lg border border-transparent hover:border-purple-100/50 hover:shadow-sm transition-all group">
+                <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${showMotherTasks ? 'bg-purple-500 border-purple-500' : 'border-gray-300 bg-white'}`}>
+                  {showMotherTasks && <Check size={12} className="text-white" />}
                 </div>
                 <input
                   type="checkbox"
                   className="hidden"
-                  checked={showRecurringOnly}
-                  onChange={(e) => onRecurringToggle(e.target.checked)}
+                  checked={showMotherTasks}
+                  onChange={(e) => onMotherTasksToggle(e.target.checked)}
                 />
                 <div>
                   <div className="flex items-center gap-1.5">
-                    <div className="text-indigo-500 font-bold text-xs ring-1 ring-indigo-500 rounded px-1">R</div>
-                    <span className="text-sm font-medium text-gray-700 group-hover:text-indigo-700">Solo tareas madre</span>
+                    <div className="text-purple-500 font-bold text-xs ring-1 ring-purple-500 rounded px-1">M</div>
+                    <span className="text-sm font-medium text-gray-700 group-hover:text-purple-700">
+                      {showMotherTasks ? 'Ocultar tareas madre' : 'Ver tareas madre'}
+                    </span>
                   </div>
                 </div>
               </label>
+
+              {/* Solo tareas madre - Solo visible cuando showMotherTasks está activo */}
+              {showMotherTasks && (
+                <label className="flex items-center gap-3 cursor-pointer hover:bg-white p-2 rounded-lg border border-transparent hover:border-indigo-100/50 hover:shadow-sm transition-all group">
+                  <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${showRecurringOnly ? 'bg-indigo-500 border-indigo-500' : 'border-gray-300 bg-white'}`}>
+                    {showRecurringOnly && <Check size={12} className="text-white" />}
+                  </div>
+                  <input
+                    type="checkbox"
+                    className="hidden"
+                    checked={showRecurringOnly}
+                    onChange={(e) => onRecurringToggle(e.target.checked)}
+                  />
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="text-indigo-500 font-bold text-xs ring-1 ring-indigo-500 rounded px-1">R</div>
+                      <span className="text-sm font-medium text-gray-700 group-hover:text-indigo-700">Solo tareas madre</span>
+                    </div>
+                  </div>
+                </label>
+              )}
             </div>
           </div>
         </div>
