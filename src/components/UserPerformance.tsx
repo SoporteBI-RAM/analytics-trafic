@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Task, User } from '../types';
-import { Award, CheckCircle2, Clock, AlertCircle, TrendingUp } from 'lucide-react';
+import { Award, CheckCircle2, Clock, AlertCircle, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface UserPerformanceProps {
     tasks: Task[];
@@ -17,7 +17,71 @@ interface UserStats {
     pending: number;
     overdue: number;
     completionRate: number;
+    completedTasks: Task[];
+    pendingTasks: Task[];
+    overdueTasks: Task[];
 }
+
+const STATUS_LABELS: Record<string, string> = {
+    todo: 'Por Hacer',
+    inprogress: 'En Progreso',
+    review: 'En Revisión',
+    done: 'Finalizado'
+};
+
+const TaskDropdown: React.FC<{ title: string; tasks: Task[]; color: string; icon: React.ReactNode }> = ({ title, tasks, color, icon }) => {
+    const [isOpen, setIsOpen] = useState(false);
+
+    if (tasks.length === 0) return null;
+
+    return (
+        <div className="bg-gray-50 rounded-lg">
+            <button
+                onClick={() => setIsOpen(!isOpen)}
+                className={`w-full p-3 flex items-center justify-between hover:bg-gray-100 rounded-lg transition-colors ${color}`}
+            >
+                <div className="flex items-center gap-2">
+                    {icon}
+                    <span className="text-xs font-medium">{title}</span>
+                    <span className="text-xl font-bold">{tasks.length}</span>
+                </div>
+                {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
+            {isOpen && (
+                <div className="p-3 space-y-2 max-h-48 overflow-y-auto border-t border-gray-200">
+                    {tasks.map(task => (
+                        <div key={task.id} className="text-xs bg-white rounded p-2 border border-gray-200">
+                            <div className="flex items-start gap-2">
+                                <div className="flex-1">
+                                    <p className="font-medium text-gray-800 line-clamp-1">{task.title}</p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                                            task.status === 'done' ? 'bg-green-100 text-green-700' :
+                                            task.status === 'inprogress' ? 'bg-blue-100 text-blue-700' :
+                                            task.status === 'review' ? 'bg-amber-100 text-amber-700' :
+                                            'bg-gray-100 text-gray-600'
+                                        }`}>
+                                            {STATUS_LABELS[task.status]}
+                                        </span>
+                                        <span className="text-[10px] text-gray-500">
+                                            {new Date(task.dueDate).toLocaleDateString('es-ES')}
+                                        </span>
+                                    </div>
+                                </div>
+                                {task.isRecurring && !task.parentTaskId && (
+                                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-gradient-to-r from-purple-100 to-indigo-100 border border-purple-300 rounded-full text-[10px] font-bold text-purple-700 shadow-sm flex-shrink-0">
+                                        <span className="text-[8px]">🔄</span>
+                                        M
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
 
 export const UserPerformance: React.FC<UserPerformanceProps> = ({ tasks, users, currentUser }) => {
     const userStats = useMemo(() => {
@@ -39,7 +103,10 @@ export const UserPerformance: React.FC<UserPerformanceProps> = ({ tasks, users, 
                 completed: 0,
                 pending: 0,
                 overdue: 0,
-                completionRate: 0
+                completionRate: 0,
+                completedTasks: [],
+                pendingTasks: [],
+                overdueTasks: []
             });
         });
 
@@ -53,10 +120,13 @@ export const UserPerformance: React.FC<UserPerformanceProps> = ({ tasks, users, 
 
                     if (task.status === 'done') {
                         stats.completed++;
+                        stats.completedTasks.push(task);
                     } else {
                         stats.pending++;
+                        stats.pendingTasks.push(task);
                         if (task.dueDate < today) {
                             stats.overdue++;
+                            stats.overdueTasks.push(task);
                         }
                     }
                 }
@@ -148,31 +218,26 @@ export const UserPerformance: React.FC<UserPerformanceProps> = ({ tasks, users, 
                             </div>
                         </div>
 
-                        {/* Stats */}
-                        <div className="grid grid-cols-2 gap-3">
-                            <div className="bg-gray-50 rounded-lg p-3">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <CheckCircle2 size={16} className="text-green-600" />
-                                    <span className="text-xs font-medium text-gray-600">Completadas</span>
-                                </div>
-                                <p className="text-xl font-bold text-gray-800">{stats.completed}</p>
-                            </div>
-
-                            <div className="bg-gray-50 rounded-lg p-3">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <Clock size={16} className="text-blue-600" />
-                                    <span className="text-xs font-medium text-gray-600">Pendientes</span>
-                                </div>
-                                <p className="text-xl font-bold text-gray-800">{stats.pending}</p>
-                            </div>
-
-                            <div className="bg-gray-50 rounded-lg p-3 col-span-2">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <AlertCircle size={16} className="text-red-600" />
-                                    <span className="text-xs font-medium text-gray-600">Vencidas</span>
-                                </div>
-                                <p className="text-xl font-bold text-red-600">{stats.overdue}</p>
-                            </div>
+                        {/* Stats with Dropdowns */}
+                        <div className="space-y-2">
+                            <TaskDropdown
+                                title="Completadas"
+                                tasks={stats.completedTasks}
+                                color="text-green-700"
+                                icon={<CheckCircle2 size={16} className="text-green-600" />}
+                            />
+                            <TaskDropdown
+                                title="Pendientes"
+                                tasks={stats.pendingTasks}
+                                color="text-blue-700"
+                                icon={<Clock size={16} className="text-blue-600" />}
+                            />
+                            <TaskDropdown
+                                title="Vencidas"
+                                tasks={stats.overdueTasks}
+                                color="text-red-700"
+                                icon={<AlertCircle size={16} className="text-red-600" />}
+                            />
                         </div>
 
                         {/* Total */}

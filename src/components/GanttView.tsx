@@ -117,7 +117,16 @@ export const GanttView: React.FC<GanttViewProps> = ({ tasks, users, onEdit, onDe
               return (
                 <div key={task.id} className="h-[48px] px-4 flex items-center justify-between border-b border-gray-100 hover:bg-gray-100 group">
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium truncate" title={task.title}>{task.title}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-sm font-medium truncate" title={task.title}>{task.title}</div>
+                      {/* Etiqueta para tareas madre */}
+                      {task.isRecurring && !task.parentTaskId && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-gradient-to-r from-purple-100 to-indigo-100 border border-purple-300 rounded-full text-[10px] font-bold text-purple-700 shadow-sm flex-shrink-0">
+                          <span className="text-[8px]">🔄</span>
+                          M
+                        </span>
+                      )}
+                    </div>
                     <div className="text-xs text-gray-400 flex items-center gap-1">
                       {assignee && <img src={assignee.avatar} className="w-4 h-4 rounded-full" alt={assignee.name}/>}
                       {assignee?.name.split(' ')[0]}

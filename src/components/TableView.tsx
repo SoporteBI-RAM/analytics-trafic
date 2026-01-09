@@ -215,7 +215,16 @@ export const TableView: React.FC<TableViewProps> = ({ tasks, users, clients, onE
                     {getClientName(task.clientId)}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="text-sm font-medium text-gray-800">{task.title}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-sm font-medium text-gray-800">{task.title}</div>
+                      {/* Etiqueta visual para tareas madre */}
+                      {task.isRecurring && !task.parentTaskId && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gradient-to-r from-purple-100 to-indigo-100 border border-purple-300 rounded-full text-xs font-bold text-purple-700 shadow-sm">
+                          <span className="text-[10px]">🔄</span>
+                          MADRE
+                        </span>
+                      )}
+                    </div>
                     {task.description && (
                       <div className="text-xs text-gray-500 mt-1 line-clamp-1">{task.description}</div>
                     )}

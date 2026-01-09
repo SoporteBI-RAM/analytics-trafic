@@ -35,6 +35,13 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, users, onDragStart }) 
         </div>
       )}
 
+      {/* Etiqueta para tareas madre */}
+      {task.isRecurring && !task.parentTaskId && (
+        <div className="flex items-center gap-1 text-purple-700 text-[10px] font-bold mb-1.5 bg-gradient-to-r from-purple-100 to-indigo-100 border border-purple-300 px-1.5 py-0.5 rounded-full shadow-sm">
+          <span>🔄 TAREA MADRE</span>
+        </div>
+      )}
+
       <div className="flex justify-between items-start mb-1.5">
         <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full ${priorityColors[task.priority]}`}>
           {task.priority}

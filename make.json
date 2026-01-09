@@ -1,0 +1,123 @@
+{
+    "name": "Reporte Diario de Tareas con Gemini",
+    "flow": [
+        {
+            "id": 1,
+            "module": "google-sheets:search-rows",
+            "metadata": {
+                "designer": {
+                    "x": 0,
+                    "y": 0
+                },
+                "expect": [
+                    {
+                        "name": "spreadsheetId",
+                        "type": "select"
+                    },
+                    {
+                        "name": "sheetName",
+                        "type": "select"
+                    }
+                ]
+            },
+            "parameters": {
+                "limit": 100
+            },
+            "mapper": {
+                "spreadsheetId": "",
+                "sheetName": "Users"
+            }
+        },
+        {
+            "id": 2,
+            "module": "google-sheets:search-rows",
+            "metadata": {
+                "designer": {
+                    "x": 250,
+                    "y": 0
+                }
+            },
+            "parameters": {
+                "limit": 1000
+            },
+            "mapper": {
+                "spreadsheetId": "",
+                "sheetName": "Tasks"
+            }
+        },
+        {
+            "id": 3,
+            "module": "builtin:BasicFeeder",
+            "metadata": {
+                "designer": {
+                    "x": 500,
+                    "y": 0
+                }
+            },
+            "parameters": {
+                "array": "{{1.rows}}"
+            }
+        },
+        {
+            "id": 4,
+            "module": "builtin:BasicTransformer",
+            "metadata": {
+                "designer": {
+                    "x": 750,
+                    "y": 0
+                }
+            },
+            "parameters": {
+                "variables": [
+                    {
+                        "name": "filteredTasks",
+                        "value": "{{filter(2.rows; \"assigneeIds\"; \"contains\"; 3.id)}}"
+                    }
+                ]
+            }
+        },
+        {
+            "id": 5,
+            "module": "http:make-a-request",
+            "metadata": {
+                "designer": {
+                    "x": 1000,
+                    "y": 0
+                }
+            },
+            "parameters": {
+                "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=TU_API_KEY",
+                "method": "POST",
+                "headers": [
+                    {
+                        "name": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": "{\"contents\":[{\"parts\":[{\"text\":\"Genera reporte HTML para {{3.name}}. Datos: {{4.filteredTasks}}\"}]}],\"system_instruction\":{\"parts\":[{\"text\":\"Eres un analista de tareas. Resume en HTML, destaca vencidas en rojo, agrupa por cliente. Sé breve.\"}]}}",
+                "type": "json"
+            }
+        },
+        {
+            "id": 6,
+            "module": "google-email:send-email",
+            "metadata": {
+                "designer": {
+                    "x": 1250,
+                    "y": 0
+                }
+            },
+            "parameters": {
+                "to": [
+                    "{{3.email}}"
+                ],
+                "subject": "📋 Reporte Diario de Tareas",
+                "content": "{{5.body.candidates[1].content.parts[1].text}}",
+                "type": "html"
+            }
+        }
+    ],
+    "metadata": {
+        "version": 1
+    }
+}

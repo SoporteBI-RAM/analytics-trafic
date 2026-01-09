@@ -940,6 +940,74 @@ const App: React.FC = () => {
     return true;
   });
 
+  // Tareas para vistas de rendimiento: incluye TODAS las tareas (ignorando filtro de estado)
+  // Se usa para comparar el total de tareas vs las que coinciden con los filtros
+  const performanceTasksPreFilter = tasks.filter(task => {
+    // 1. Restricción por Rol (Analista solo ve lo suyo)
+    if (currentUser?.role === 'Analyst') {
+      const isAssigned = task.assigneeIds?.includes(currentUser.id) || task.assigneeId === currentUser.id;
+      if (!isAssigned) return false;
+    } else if (selectedAssignees.length > 0) {
+      // 2. Filtro de responsables (Admin)
+      const hasAssignee = task.assigneeIds?.some(id => selectedAssignees.includes(id)) ||
+        (task.assigneeId && selectedAssignees.includes(task.assigneeId));
+      if (!hasAssignee) return false;
+    }
+
+    // 3. Filtro por cliente
+    if (selectedClients.length > 0 && (!task.clientId || !selectedClients.includes(task.clientId))) {
+      return false;
+    }
+
+    // 4. Filtro por prioridad
+    if (selectedPriorities.length > 0 && !selectedPriorities.includes(task.priority)) {
+      return false;
+    }
+
+    // 5. Filtro por búsqueda
+    if (searchTaskName && !task.title.toLowerCase().includes(searchTaskName.toLowerCase())) {
+      return false;
+    }
+
+    // 6. Filtro por fecha desde
+    if (dateFrom && task.dueDate < dateFrom) {
+      return false;
+    }
+
+    // 7. Filtro por fecha hasta
+    if (dateTo && task.dueDate > dateTo) {
+      return false;
+    }
+
+    // 8. Filtro de tareas vencidas
+    if (showOverdueOnly) {
+      const today = new Date().toISOString().split('T')[0];
+      const isOverdue = task.status !== 'done' && task.dueDate < today;
+      if (!isOverdue) return false;
+    }
+
+    // IMPORTANTE: NO aplicar filtro de estado aquí
+    // Las vistas de rendimiento necesitan ver TODAS las tareas para comparar correctamente
+
+    return true;
+  });
+
+  // Aplicar filtros de tareas madre a performanceTasks
+  const performanceTasks = performanceTasksPreFilter.filter(t => {
+    // Si showMotherTasks está desactivado (por defecto), ocultar tareas madre
+    if (!showMotherTasks && t.isRecurring && !t.parentTaskId) {
+      return false; // Ocultar tarea madre
+    }
+
+    // Si showMotherTasks está activado y showRecurringOnly está activo, solo mostrar tareas madre
+    if (showMotherTasks && showRecurringOnly) {
+      return t.isRecurring && !t.parentTaskId; // Solo tareas madre
+    }
+
+    // Mostrar todas las tareas (incluidas madres e hijas)
+    return true;
+  });
+
   // Filtrar tareas madre según el estado showMotherTasks
   const displayTasks = filteredTasks.filter(t => {
     // Si showMotherTasks está desactivado (por defecto), ocultar tareas madre
@@ -1316,7 +1384,7 @@ const App: React.FC = () => {
 
           {viewMode === ViewMode.GANTT && (
             <GanttView
-              tasks={filteredTasks}
+              tasks={displayTasks}
               users={users}
               onEdit={setEditingTask}
               onDelete={handleDeleteTask}
@@ -1341,7 +1409,15 @@ const App: React.FC = () => {
                     {tasks.length > 0 ? tasks.map(task => (
                       <div key={task.id} className="flex items-start gap-2 text-sm border-l-2 border-blue-500 pl-3 py-1">
                         <div className="flex-1">
-                          <p className="font-medium text-gray-800 line-clamp-1">{task.title}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-medium text-gray-800 line-clamp-1">{task.title}</p>
+                            {task.isRecurring && !task.parentTaskId && (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-gradient-to-r from-purple-100 to-indigo-100 border border-purple-300 rounded-full text-[10px] font-bold text-purple-700 shadow-sm flex-shrink-0">
+                                <span className="text-[8px]">🔄</span>
+                                M
+                              </span>
+                            )}
+                          </div>
                           <span className={`text-[10px] px-1.5 py-0.5 rounded ${task.status === 'done' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
                             }`}>{STATUS_LABELS[task.status]}</span>
                         </div>
@@ -1394,7 +1470,7 @@ const App: React.FC = () => {
 
           {viewMode === ViewMode.TABLE && (
             <TableView
-              tasks={filteredTasks}
+              tasks={displayTasks}
               users={users}
               clients={clients}
               onEditTask={(task) => setEditingTask(task)}
@@ -1404,7 +1480,7 @@ const App: React.FC = () => {
 
           {viewMode === ViewMode.CLIENT_PERFORMANCE && (
             <ClientPerformance
-              tasks={filteredTasks}
+              tasks={performanceTasks}
               clients={clients}
               currentUser={currentUser!}
             />
@@ -1412,7 +1488,7 @@ const App: React.FC = () => {
 
           {viewMode === ViewMode.USER_PERFORMANCE && (
             <UserPerformance
-              tasks={filteredTasks}
+              tasks={performanceTasks}
               users={users}
               currentUser={currentUser!}
             />
