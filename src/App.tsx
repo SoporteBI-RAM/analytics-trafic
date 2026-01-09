@@ -31,7 +31,10 @@ import {
   Save,
   Building2,
   BarChart3,
-  Award
+  Award,
+  Settings,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 
 // Helper para obtener fecha local en formato YYYY-MM-DD SIEMPRE en UTC-5 (Ecuador)
@@ -69,6 +72,7 @@ const INITIAL_TASKS: Task[] = [];
 
 const App: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.KANBAN);
   const [isGeneratingEmail, setIsGeneratingEmail] = useState(false);
@@ -1080,8 +1084,7 @@ const App: React.FC = () => {
         </div>
 
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          {/* ... Navigation Buttons ... */}
-          {/* (Preserve existing navigation buttons) */}
+          {/* Vistas principales */}
           <button
             onClick={() => { setViewMode(ViewMode.KANBAN); setIsMobileMenuOpen(false); }}
             className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${viewMode === ViewMode.KANBAN ? 'bg-ram-cream text-ram-navy font-bold' : 'text-ram-grey hover:bg-gray-50'}`}
@@ -1106,31 +1109,8 @@ const App: React.FC = () => {
             Vista de Tabla
           </button>
 
+          {/* Sección Análisis */}
           <div className="pt-4 mt-4 border-t border-gray-100">
-            <button
-              onClick={() => { setViewMode(ViewMode.TEAM); setIsMobileMenuOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${viewMode === ViewMode.TEAM ? 'bg-ram-cream text-ram-navy font-bold' : 'text-ram-grey hover:bg-gray-50'}`}
-            >
-              <UsersIcon size={18} />
-              Equipo
-            </button>
-
-            <button
-              onClick={() => { setViewMode(ViewMode.TEAM_MANAGEMENT); setIsMobileMenuOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${viewMode === ViewMode.TEAM_MANAGEMENT ? 'bg-ram-cream text-ram-navy font-bold' : 'text-ram-grey hover:bg-gray-50'}`}
-            >
-              <UserCog size={18} />
-              Gestión de Equipo
-            </button>
-
-            <button
-              onClick={() => { setViewMode(ViewMode.CLIENT_MANAGEMENT); setIsMobileMenuOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${viewMode === ViewMode.CLIENT_MANAGEMENT ? 'bg-ram-cream text-ram-navy font-bold' : 'text-ram-grey hover:bg-gray-50'}`}
-            >
-              <Building2 size={18} />
-              Gestión de Clientes
-            </button>
-
             <button
               onClick={() => { setViewMode(ViewMode.CLIENT_PERFORMANCE); setIsMobileMenuOpen(false); }}
               className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${viewMode === ViewMode.CLIENT_PERFORMANCE ? 'bg-ram-cream text-ram-navy font-bold' : 'text-ram-grey hover:bg-gray-50'}`}
@@ -1146,6 +1126,49 @@ const App: React.FC = () => {
               <Award size={18} />
               Rendimiento Usuarios
             </button>
+          </div>
+
+          {/* Submenú Administración */}
+          <div className="pt-4 mt-4 border-t border-gray-100">
+            <button
+              onClick={() => setIsAdminMenuOpen(!isAdminMenuOpen)}
+              className="w-full flex items-center justify-between gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-ram-grey hover:bg-gray-50"
+            >
+              <div className="flex items-center gap-3">
+                <Settings size={18} />
+                <span>Administración</span>
+              </div>
+              {isAdminMenuOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
+
+            {/* Submenú items */}
+            {isAdminMenuOpen && (
+              <div className="ml-4 mt-1 space-y-1 border-l-2 border-gray-200 pl-2">
+                <button
+                  onClick={() => { setViewMode(ViewMode.TEAM); setIsMobileMenuOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${viewMode === ViewMode.TEAM ? 'bg-ram-cream text-ram-navy font-bold' : 'text-ram-grey hover:bg-gray-50'}`}
+                >
+                  <UsersIcon size={16} />
+                  Equipo
+                </button>
+
+                <button
+                  onClick={() => { setViewMode(ViewMode.TEAM_MANAGEMENT); setIsMobileMenuOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${viewMode === ViewMode.TEAM_MANAGEMENT ? 'bg-ram-cream text-ram-navy font-bold' : 'text-ram-grey hover:bg-gray-50'}`}
+                >
+                  <UserCog size={16} />
+                  Gestión de Equipo
+                </button>
+
+                <button
+                  onClick={() => { setViewMode(ViewMode.CLIENT_MANAGEMENT); setIsMobileMenuOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${viewMode === ViewMode.CLIENT_MANAGEMENT ? 'bg-ram-cream text-ram-navy font-bold' : 'text-ram-grey hover:bg-gray-50'}`}
+                >
+                  <Building2 size={16} />
+                  Gestión de Clientes
+                </button>
+              </div>
+            )}
           </div>
         </nav>
 
