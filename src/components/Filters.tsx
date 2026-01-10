@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { User, Status, Priority, Client } from '../types';
-import { Filter, X, ChevronDown, ChevronUp, Search, AlertCircle, Check } from 'lucide-react';
+import { Filter, X, ChevronDown, ChevronUp, Search, AlertCircle, Check, Calendar } from 'lucide-react';
 
 interface FiltersProps {
   currentUser: User;
@@ -226,14 +226,13 @@ export const Filters: React.FC<FiltersProps> = ({
               )}
             </div>
 
-            {/* Rangos de Fecha */}
-            <div className="space-y-2">
-              <div className="flex justify-between items-center mb-2">
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Fecha Vencimiento</label>
+            {/* Fechas */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-end">
                 {(dateFrom || dateTo) && (
                   <button
                     onClick={() => onClearFiltersBySection('dates')}
-                    className="text-[10px] text-gray-400 hover:text-red-500 font-medium transition-colors flex items-center gap-0.5"
+                    className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-ram-blue transition-colors font-medium"
                   >
                     <X size={10} />
                     Limpiar
@@ -241,21 +240,30 @@ export const Filters: React.FC<FiltersProps> = ({
                 )}
               </div>
               <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <input
-                    type="date"
-                    value={dateFrom}
-                    onChange={(e) => onDateFromChange(e.target.value)}
-                    className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1 pointer-events-none uppercase tracking-wider">Fecha Inicio</label>
+                  <div className="relative group">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-hover:text-ram-blue transition-colors" size={16} />
+                    <input
+                      type="date"
+                      value={dateFrom}
+                      onChange={(e) => onDateFromChange(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-ram-blue/20 focus:border-ram-blue focus:bg-white outline-none transition-all"
+                    />
+                  </div>
                 </div>
-                <div className="relative flex-1">
-                  <input
-                    type="date"
-                    value={dateTo}
-                    onChange={(e) => onDateToChange(e.target.value)}
-                    className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1 pointer-events-none uppercase tracking-wider">Fecha Vencimiento</label>
+                  <div className="relative group">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-hover:text-ram-blue transition-colors" size={16} />
+                    <input
+                      type="date"
+                      value={dateTo}
+                      onChange={(e) => onDateToChange(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-ram-blue/20 focus:border-ram-blue focus:bg-white outline-none transition-all"
+                    />
+                  </div>
                 </div>
               </div>
             </div>

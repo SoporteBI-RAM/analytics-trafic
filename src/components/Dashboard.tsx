@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Task, User, Status, Priority } from '../types';
+import { Task, User, Status, Priority, Client } from '../types';
 import {
     BarChart3,
     CheckCircle2,
@@ -10,7 +10,8 @@ import {
     User as UserIcon,
     Layout,
     X,
-    ExternalLink
+    ExternalLink,
+    HelpCircle
 } from 'lucide-react';
 import { getLocalDateString } from '../utils/dateUtils';
 
@@ -18,6 +19,8 @@ interface DashboardProps {
     tasks: Task[];
     contextTasks: Task[]; // Tareas sin filtro de estado (para cálculos globales)
     users: User[];
+    clients: Client[];
+    currentUser: User;
 }
 
 interface DrillDownState {
@@ -33,7 +36,7 @@ const STATUS_LABELS: Record<string, string> = {
     done: 'Finalizado'
 };
 
-export const Dashboard: React.FC<DashboardProps> = ({ tasks, contextTasks, users }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ tasks, contextTasks, users, clients, currentUser }) => {
     const [drillDown, setDrillDown] = useState<DrillDownState | null>(null);
 
     // --- KPI Calculation (Completion Rate uses contextTasks) ---
@@ -50,18 +53,36 @@ export const Dashboard: React.FC<DashboardProps> = ({ tasks, contextTasks, users
         const contextCompleted = contextTasks.filter(t => t.status === 'done');
         const completionRate = contextTotal > 0 ? Math.round((contextCompleted.length / contextTotal) * 100) : 0;
 
+        // Current Month/Year Stats
+        const today = getLocalDateString();
+        const [currentYear, currentMonth] = today.split('-');
+
+        const monthTasks = contextTasks.filter(t => t.dueDate.startsWith(`${currentYear}-${currentMonth}`));
+        const monthCompleted = monthTasks.filter(t => t.status === 'done');
+        const monthRate = monthTasks.length > 0 ? Math.round((monthCompleted.length / monthTasks.length) * 100) : 0;
+
+        const yearTasks = contextTasks.filter(t => t.dueDate.startsWith(currentYear));
+        const yearCompleted = yearTasks.filter(t => t.status === 'done');
+        const yearRate = yearTasks.length > 0 ? Math.round((yearCompleted.length / yearTasks.length) * 100) : 0;
+
         return {
             total: totalVisible,
             pendingCount: pending.length,
             criticalCount: critical.length,
             highCount: high.length,
             completionRate,
+            monthRate,
+            yearRate,
+            monthTotal: monthTasks.length,
+            yearTotal: yearTasks.length,
             // Raw arrays for drill-down
             pendingTasks: pending,
             criticalTasks: critical,
             highTasks: high,
             activeTasks: activeWorkload,
-            completedContextTasks: contextCompleted // To show what "Completed" means in context
+            completedContextTasks: contextCompleted,
+            monthCompletedTasks: monthCompleted,
+            yearCompletedTasks: yearCompleted
         };
     }, [tasks, contextTasks]);
 
@@ -89,7 +110,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ tasks, contextTasks, users
     // --- Top Users by Workload (Pending Tasks) ---
     const userWorkload = useMemo(() => {
         const activeTasks = tasks.filter(t => t.status !== 'done');
-        const workload = users.map(user => {
+
+        // Determinar qué usuarios mostrar basado en el rol
+        const usersToShow = currentUser.role === 'Analyst'
+            ? users.filter(u => u.id === currentUser.id)
+            : users;
+
+        const workload = usersToShow.map(user => {
             const userTasks = activeTasks.filter(t =>
                 t.assigneeIds?.includes(user.id) || t.assigneeId === user.id
             );
@@ -97,7 +124,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ tasks, contextTasks, users
         });
         // Sort by count desc and take top 5
         return workload.sort((a, b) => b.count - a.count).slice(0, 5);
-    }, [tasks, users]);
+    }, [tasks, users, currentUser]);
+
+    // --- Client Distribution (Pending Tasks) ---
+    const clientDistribution = useMemo(() => {
+        const pendingTasks = tasks.filter(t => t.status !== 'done');
+        const distribution = Array.from(new Set(pendingTasks.map(t => t.clientId).filter(Boolean))).map(clientId => {
+            const clientTasks = pendingTasks.filter(t => t.clientId === clientId);
+            const client = clients.find(c => c.id === clientId);
+            return {
+                id: clientId,
+                name: client?.name || 'Cliente Desconocido',
+                count: clientTasks.length,
+                tasks: clientTasks
+            };
+        });
+        return distribution.sort((a, b) => b.count - a.count);
+    }, [tasks, clients]);
 
     // --- Helper for progress bars ---
     const maxWorkload = Math.max(...userWorkload.map(w => w.count), 1);
@@ -120,19 +163,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ tasks, contextTasks, users
                 </div>
 
                 {/* KPIs Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
                     {/* Card 1: Total Pending */}
                     <div
                         onClick={() => handleDrillDown('Tareas Pendientes', stats.pendingTasks, 'border-blue-500')}
                         className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group hover:shadow-md transition-all cursor-pointer hover:border-blue-200"
                     >
                         <div>
-                            <p className="text-gray-500 text-sm font-medium mb-1">Tareas Pendientes</p>
+                            <div className="flex items-center gap-1.5 mb-1">
+                                <p className="text-gray-500 text-sm font-medium">Pendientes</p>
+                                <div className="group/info relative">
+                                    <HelpCircle size={14} className="text-gray-300 hover:text-gray-400" />
+                                    <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-gray-800 text-white text-[10px] rounded shadow-lg opacity-0 group-hover/info:opacity-100 pointer-events-none transition-opacity z-50">
+                                        Total de tareas que no están en estado 'Finalizado'.
+                                    </div>
+                                </div>
+                            </div>
                             <h3 className="text-3xl font-bold text-gray-800">{stats.pendingCount}</h3>
-                            <p className="text-xs text-gray-400 mt-1">De {stats.total} tareas visibles</p>
+                            <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-wider">A NIVEL GENERAL</p>
                         </div>
-                        <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                            <Clock size={24} />
+                        <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <Clock size={20} />
                         </div>
                     </div>
 
@@ -142,64 +193,134 @@ export const Dashboard: React.FC<DashboardProps> = ({ tasks, contextTasks, users
                         className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group hover:shadow-md transition-all cursor-pointer hover:border-red-200"
                     >
                         <div>
-                            <p className="text-gray-500 text-sm font-medium mb-1">Prioridad Alta/Crítica</p>
+                            <div className="flex items-center gap-1.5 mb-1">
+                                <p className="text-gray-500 text-sm font-medium">Urgentes</p>
+                                <div className="group/info relative">
+                                    <HelpCircle size={14} className="text-gray-300 hover:text-gray-400" />
+                                    <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-gray-800 text-white text-[10px] rounded shadow-lg opacity-0 group-hover/info:opacity-100 pointer-events-none transition-opacity z-50">
+                                        Tareas con prioridad 'Alta' o 'Crítica' que están pendientes.
+                                    </div>
+                                </div>
+                            </div>
                             <div className="flex items-baseline gap-2">
                                 <h3 className="text-3xl font-bold text-gray-800">{stats.criticalCount + stats.highCount}</h3>
-                                <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">
-                                    {stats.criticalCount} Críticas
+                                <span className="text-[10px] font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded-full uppercase">
+                                    {stats.criticalCount} C
                                 </span>
                             </div>
-                            <p className="text-xs text-gray-400 mt-1">Requieren atención inmediata</p>
+                            <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-wider">PRIORIDAD ALTA</p>
                         </div>
-                        <div className="w-12 h-12 bg-red-50 text-red-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                            <AlertCircle size={24} />
+                        <div className="w-10 h-10 bg-red-50 text-red-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <AlertCircle size={20} />
                         </div>
                     </div>
 
                     {/* Card 3: Completion Rate */}
                     <div
-                        onClick={() => handleDrillDown('Tareas Finalizadas (Total Contexto)', stats.completedContextTasks, 'border-green-500')}
-                        className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group hover:shadow-md transition-all cursor-pointer hover:border-green-200"
+                        onClick={() => handleDrillDown('Tareas Finalizadas (Total Contexto)', stats.completedContextTasks, 'border-emerald-500')}
+                        className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group hover:shadow-md transition-all cursor-pointer hover:border-emerald-200"
                     >
                         <div>
-                            <p className="text-gray-500 text-sm font-medium mb-1">Tasa de Finalización</p>
+                            <div className="flex items-center gap-1.5 mb-1">
+                                <p className="text-gray-500 text-sm font-medium">Rendimiento Total</p>
+                                <div className="group/info relative">
+                                    <HelpCircle size={14} className="text-gray-300 hover:text-gray-400" />
+                                    <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-gray-800 text-white text-[10px] rounded shadow-lg opacity-0 group-hover/info:opacity-100 pointer-events-none transition-opacity z-50">
+                                        (Tareas terminadas en total) / (Total de tareas en el contexto actual).
+                                    </div>
+                                </div>
+                            </div>
                             <h3 className="text-3xl font-bold text-gray-800">{stats.completionRate}%</h3>
-                            <div className="w-24 h-1.5 bg-gray-100 rounded-full mt-2 overflow-hidden">
+                            <div className="w-20 h-1.5 bg-gray-100 rounded-full mt-2 overflow-hidden">
                                 <div
-                                    className="h-full bg-green-500 rounded-full transition-all duration-500"
+                                    className="h-full bg-emerald-500 rounded-full transition-all duration-500"
                                     style={{ width: `${stats.completionRate}%` }}
                                 />
                             </div>
                         </div>
-                        <div className="w-12 h-12 bg-green-50 text-green-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                            <CheckCircle2 size={24} />
+                        <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <TrendingUp size={20} />
                         </div>
                     </div>
 
-                    {/* Card 4: Total Active Workload */}
+                    {/* Card 4: Month Performance */}
+                    <div
+                        onClick={() => handleDrillDown('Finalizadas este Mes', stats.monthCompletedTasks, 'border-indigo-500')}
+                        className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group hover:shadow-md transition-all cursor-pointer hover:border-indigo-200"
+                    >
+                        <div>
+                            <div className="flex items-center gap-1.5 mb-1">
+                                <p className="text-gray-500 text-sm font-medium">Este Mes</p>
+                                <div className="group/info relative">
+                                    <HelpCircle size={14} className="text-gray-300 hover:text-gray-400" />
+                                    <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-gray-800 text-white text-[10px] rounded shadow-lg opacity-0 group-hover/info:opacity-100 pointer-events-none transition-opacity z-50">
+                                        Calculado como: (Tareas terminadas) / (Total de tareas con vencimiento este mes)
+                                    </div>
+                                </div>
+                            </div>
+                            <h3 className="text-3xl font-bold text-gray-800">{stats.monthRate}%</h3>
+                            <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-wider">{stats.monthTotal} TAREAS</p>
+                        </div>
+                        <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <Layout size={20} />
+                        </div>
+                    </div>
+
+                    {/* Card 5: Year Performance */}
+                    <div
+                        onClick={() => handleDrillDown('Finalizadas este Año', stats.yearCompletedTasks, 'border-amber-500')}
+                        className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group hover:shadow-md transition-all cursor-pointer hover:border-amber-200"
+                    >
+                        <div>
+                            <div className="flex items-center gap-1.5 mb-1">
+                                <p className="text-gray-500 text-sm font-medium">Este Año</p>
+                                <div className="group/info relative">
+                                    <HelpCircle size={14} className="text-gray-300 hover:text-gray-400" />
+                                    <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-gray-800 text-white text-[10px] rounded shadow-lg opacity-0 group-hover/info:opacity-100 pointer-events-none transition-opacity z-50">
+                                        Calculado como: (Tareas terminadas) / (Total de tareas con vencimiento este año)
+                                    </div>
+                                </div>
+                            </div>
+                            <h3 className="text-3xl font-bold text-gray-800">{stats.yearRate}%</h3>
+                            <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-wider">{stats.yearTotal} TAREAS</p>
+                        </div>
+                        <div className="w-10 h-10 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <BarChart3 size={20} />
+                        </div>
+                    </div>
+
+                    {/* Card 6: Active Workload */}
                     <div
                         onClick={() => handleDrillDown('Carga de Trabajo Activa', stats.activeTasks, 'border-purple-500')}
                         className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group hover:shadow-md transition-all cursor-pointer hover:border-purple-200"
                     >
                         <div>
-                            <p className="text-gray-500 text-sm font-medium mb-1">Carga de Trabajo Activa</p>
+                            <div className="flex items-center gap-1.5 mb-1">
+                                <p className="text-gray-500 text-sm font-medium">Carga Activa</p>
+                                <div className="group/info relative">
+                                    <HelpCircle size={14} className="text-gray-300 hover:text-gray-400" />
+                                    <div className="absolute bottom-full left-0 mb-2 w-48 p-2 bg-gray-800 text-white text-[10px] rounded shadow-lg opacity-0 group-hover/info:opacity-100 pointer-events-none transition-opacity z-50">
+                                        Suma de tareas 'Por Hacer', 'En Progreso' y 'En Revisión'.
+                                    </div>
+                                </div>
+                            </div>
                             <h3 className="text-3xl font-bold text-gray-800">{stats.pendingCount}</h3>
-                            <p className="text-xs text-gray-400 mt-1">Tareas en progreso o por hacer</p>
+                            <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-wider">POR HACER / PROCESO</p>
                         </div>
-                        <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                            <Briefcase size={24} />
+                        <div className="w-10 h-10 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <Briefcase size={20} />
                         </div>
                     </div>
                 </div>
 
                 {/* Charts Section */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
 
                     {/* Priority Distribution */}
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 lg:col-span-1">
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                         <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2">
                             <AlertCircle size={18} className="text-gray-400" />
-                            Distribución por Prioridad
+                            Distribución Prioridad
                         </h3>
 
                         <div className="space-y-4">
@@ -235,13 +356,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ tasks, contextTasks, users
 
                         {stats.pendingCount === 0 && (
                             <div className="text-center py-8 text-gray-400 text-sm italic">
-                                No hay tareas pendientes para mostrar.
+                                No hay tareas pendientes.
                             </div>
                         )}
                     </div>
 
                     {/* Status Pipeline */}
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 lg:col-span-1">
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                         <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2">
                             <TrendingUp size={18} className="text-gray-400" />
                             Estado de Tareas
@@ -279,40 +400,75 @@ export const Dashboard: React.FC<DashboardProps> = ({ tasks, contextTasks, users
                         </div>
                     </div>
 
+                    {/* Pending by Client */}
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                        <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2">
+                            <Briefcase size={18} className="text-gray-400" />
+                            Tareas por Cliente
+                        </h3>
+
+                        <div className="space-y-4 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                            {clientDistribution.map(({ id, name, count, tasks: clientTasks }) => {
+                                return (
+                                    <div
+                                        key={id}
+                                        className="cursor-pointer group"
+                                        onClick={() => handleDrillDown(`Tareas de ${name}`, clientTasks, 'border-ram-blue')}
+                                    >
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="text-xs font-medium text-gray-600 truncate max-w-[120px] group-hover:text-ram-blue">{name}</span>
+                                            <span className="text-[10px] font-bold text-gray-500">{count}</span>
+                                        </div>
+                                        <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                                            <div
+                                                className="h-full bg-ram-blue rounded-full transition-all duration-500"
+                                                style={{ width: `${(count / stats.pendingCount) * 100}%` }}
+                                            ></div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            {clientDistribution.length === 0 && (
+                                <div className="text-center py-8 text-gray-400 text-sm italic">
+                                    Sin clientes con pendientes.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
                     {/* Top Users Workload */}
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 lg:col-span-1">
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                         <h3 className="font-bold text-gray-800 mb-6 flex items-center gap-2">
                             <UserIcon size={18} className="text-gray-400" />
-                            Más Activos (Pendientes)
+                            Carga por Usuario
                         </h3>
 
                         <div className="space-y-4">
                             {userWorkload.map(({ user, count, tasks }) => (
                                 <div
                                     key={user.id}
-                                    className="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors group"
+                                    className="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-1.5 rounded-lg transition-colors group"
                                     onClick={() => handleDrillDown(`Tareas de ${user.name}`, tasks, 'border-indigo-500')}
                                 >
-                                    <img src={user.avatar} alt={user.name} className="w-8 h-8 rounded-full bg-gray-200 object-cover group-hover:ring-2 ring-indigo-200 transition-all" />
+                                    <img src={user.avatar} alt={user.name} className="w-7 h-7 rounded-full bg-gray-200 object-cover group-hover:ring-2 ring-indigo-200 transition-all" />
                                     <div className="flex-1">
-                                        <div className="flex justify-between items-center mb-1">
-                                            <span className="text-sm font-medium text-gray-700 group-hover:text-indigo-700">{user.name.split(' ')[0]}</span>
-                                            <span className="text-xs font-bold text-gray-500 group-hover:text-indigo-600">{count}</span>
+                                        <div className="flex justify-between items-center mb-0.5">
+                                            <span className="text-xs font-medium text-gray-700 group-hover:text-indigo-700">{user.name.split(' ')[0]}</span>
+                                            <span className="text-[10px] font-bold text-gray-500 group-hover:text-indigo-600">{count}</span>
                                         </div>
-                                        <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                                        <div className="h-1 w-full bg-gray-100 rounded-full overflow-hidden">
                                             <div
                                                 className="h-full bg-indigo-500 rounded-full group-hover:bg-indigo-600 transition-colors"
                                                 style={{ width: `${(count / maxWorkload) * 100}%` }}
                                             ></div>
                                         </div>
                                     </div>
-                                    <ExternalLink size={14} className="text-gray-300 group-hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition-all" />
                                 </div>
                             ))}
 
                             {userWorkload.length === 0 && (
                                 <div className="text-center py-8 text-gray-400 text-sm italic">
-                                    No hay usuarios con tareas.
+                                    Sin actividad.
                                 </div>
                             )}
                         </div>

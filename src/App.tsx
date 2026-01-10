@@ -40,7 +40,7 @@ const App: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.KANBAN);
+  const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.DASHBOARD);
   const [isGeneratingEmail, setIsGeneratingEmail] = useState(false);
   const [emailDraft, setEmailDraft] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -114,8 +114,8 @@ const App: React.FC = () => {
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
   const [selectedClients, setSelectedClients] = useState<string[]>([]);
   const [searchTaskName, setSearchTaskName] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [dateFrom, setDateFrom] = useState(`${getLocalDateString().substring(0, 8)}01`);
+  const [dateTo, setDateTo] = useState(getLocalDateString());
   const [showOverdueOnly, setShowOverdueOnly] = useState(false);
   const [showMotherTasks, setShowMotherTasks] = useState(false); // Por defecto ocultas
   const [showRecurringOnly, setShowRecurringOnly] = useState(false);
@@ -1315,6 +1315,8 @@ const App: React.FC = () => {
               tasks={displayTasks}
               contextTasks={performanceTasks}
               users={users}
+              clients={clients}
+              currentUser={currentUser!}
             />
           )}
 
@@ -1657,7 +1659,7 @@ const TaskModal: React.FC<{
     assigneeIds: task?.assigneeIds || [],
     clientId: task?.clientId || null,
     startDate: getLocalDateString(task?.startDate),
-    dueDate: getLocalDateString(task?.dueDate || new Date(Date.now() + 86400000 * 7)),
+    dueDate: task?.dueDate ? getLocalDateString(task.dueDate) : '',
     tags: task?.tags?.join(', ') || '',
 
     // Recurrencia
@@ -1679,6 +1681,11 @@ const TaskModal: React.FC<{
 
     if (formData.assigneeIds.length === 0) {
       alert('Por favor selecciona al menos un responsable');
+      return;
+    }
+
+    if (!formData.dueDate && !formData.isRecurring) {
+      alert('Por favor selecciona una fecha de vencimiento');
       return;
     }
 
