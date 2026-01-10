@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Task, User } from '../types';
 import { Award, CheckCircle2, Clock, AlertCircle, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
+import { getLocalDateString, formatLocalDate } from '../utils/dateUtils';
 
 interface UserPerformanceProps {
     tasks: Task[];
@@ -55,16 +56,15 @@ const TaskDropdown: React.FC<{ title: string; tasks: Task[]; color: string; icon
                                 <div className="flex-1">
                                     <p className="font-medium text-gray-800 line-clamp-1">{task.title}</p>
                                     <div className="flex items-center gap-2 mt-1">
-                                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                                            task.status === 'done' ? 'bg-green-100 text-green-700' :
+                                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${task.status === 'done' ? 'bg-green-100 text-green-700' :
                                             task.status === 'inprogress' ? 'bg-blue-100 text-blue-700' :
-                                            task.status === 'review' ? 'bg-amber-100 text-amber-700' :
-                                            'bg-gray-100 text-gray-600'
-                                        }`}>
+                                                task.status === 'review' ? 'bg-amber-100 text-amber-700' :
+                                                    'bg-gray-100 text-gray-600'
+                                            }`}>
                                             {STATUS_LABELS[task.status]}
                                         </span>
                                         <span className="text-[10px] text-gray-500">
-                                            {new Date(task.dueDate).toLocaleDateString('es-ES')}
+                                            {formatLocalDate(task.dueDate)}
                                         </span>
                                     </div>
                                 </div>
@@ -85,7 +85,7 @@ const TaskDropdown: React.FC<{ title: string; tasks: Task[]; color: string; icon
 
 export const UserPerformance: React.FC<UserPerformanceProps> = ({ tasks, users, currentUser }) => {
     const userStats = useMemo(() => {
-        const today = new Date().toISOString().split('T')[0];
+        const today = getLocalDateString();
         const statsMap = new Map<string, UserStats>();
 
         // Determine which users to show based on role
@@ -178,8 +178,8 @@ export const UserPerformance: React.FC<UserPerformanceProps> = ({ tasks, users, 
                     <div
                         key={stats.userId}
                         className={`bg-white rounded-xl shadow-sm border-2 p-6 hover:shadow-md transition-all ${stats.userId === currentUser.id
-                                ? 'border-ram-blue bg-ram-cream/10'
-                                : 'border-gray-200'
+                            ? 'border-ram-blue bg-ram-cream/10'
+                            : 'border-gray-200'
                             }`}
                     >
                         {/* User Info */}
@@ -208,10 +208,10 @@ export const UserPerformance: React.FC<UserPerformanceProps> = ({ tasks, users, 
                             <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
                                 <div
                                     className={`h-full rounded-full transition-all duration-500 ${stats.completionRate >= 80
-                                            ? 'bg-green-500'
-                                            : stats.completionRate >= 50
-                                                ? 'bg-ram-gold'
-                                                : 'bg-red-500'
+                                        ? 'bg-green-500'
+                                        : stats.completionRate >= 50
+                                            ? 'bg-ram-gold'
+                                            : 'bg-red-500'
                                         }`}
                                     style={{ width: `${stats.completionRate}%` }}
                                 />

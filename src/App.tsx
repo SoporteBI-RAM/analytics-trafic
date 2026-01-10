@@ -28,46 +28,11 @@ import {
   Menu,
   X,
   Edit,
-  Trash2,
-  Save,
-  Building2,
-  BarChart3,
-  Award,
-  Settings,
-  ChevronDown,
-  ChevronUp
+  Trash2, AlertCircle, Check, Search, Filter, Calendar, ArrowLeft, BarChart3, Database, History, Layout, Settings, Briefcase, Save, Building2, Award, ChevronDown, ChevronUp
 } from 'lucide-react';
+import { getLocalDateString } from './utils/dateUtils';
 
-// Helper para obtener fecha local en formato YYYY-MM-DD SIEMPRE en UTC-5 (Ecuador)
-const getLocalDateString = (date?: Date | string | null): string => {
-  let d: Date;
 
-  if (!date) {
-    d = new Date();
-  } else if (typeof date === 'string') {
-    // Si ya es YYYY-MM-DD, devolverlo tal cual
-    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return date;
-    }
-    // Si tiene hora, extraer solo la fecha
-    if (date.includes('T')) {
-      return date.split('T')[0];
-    }
-    d = new Date(date);
-  } else {
-    d = date;
-  }
-
-  // Convertir a UTC-5 (Ecuador)
-  const utcTime = d.getTime() + (d.getTimezoneOffset() * 60000); // UTC
-  const ecuadorTime = new Date(utcTime - (5 * 3600000)); // UTC-5
-
-  const year = ecuadorTime.getUTCFullYear();
-  const month = String(ecuadorTime.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(ecuadorTime.getUTCDate()).padStart(2, '0');
-
-  return `${year}-${month}-${day}`;
-};
 
 const INITIAL_TASKS: Task[] = [];
 
@@ -500,7 +465,7 @@ const App: React.FC = () => {
 
         // Si se completó ahora, agregar fecha de finalización
         if (wasCompleted) {
-          const today = new Date().toISOString().split('T')[0];
+          const today = getLocalDateString();
           taskWithNewStatus.completedDate = today;
         }
 
@@ -594,8 +559,8 @@ const App: React.FC = () => {
 
       console.log('📅 Verificando si crear tarea para hoy:', {
         today,
-        startDate: startDate.toISOString().split('T')[0],
-        endDate: endDate.toISOString().split('T')[0]
+        startDate: getLocalDateString(startDate),
+        endDate: getLocalDateString(endDate)
       });
 
       if (todayDate >= startDate && todayDate <= endDate) {
@@ -731,7 +696,7 @@ const App: React.FC = () => {
 
     // Si se completó ahora, agregar fecha de finalización
     if (wasCompleted) {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getLocalDateString();
       taskData.completedDate = today;
     }
 
@@ -861,6 +826,19 @@ const App: React.FC = () => {
     setShowRecurringOnly(false);
   };
 
+  const handleClearFiltersBySection = (section: 'status' | 'priority' | 'assignee' | 'client' | 'dates') => {
+    switch (section) {
+      case 'status': setSelectedStatuses([]); break;
+      case 'priority': setSelectedPriorities([]); break;
+      case 'assignee': setSelectedAssignees([]); break;
+      case 'client': setSelectedClients([]); break;
+      case 'dates':
+        setDateFrom('');
+        setDateTo('');
+        break;
+    }
+  };
+
   // Aplicar filtros
   const filteredTasks = tasks.filter(task => {
     // Filtro por estado
@@ -909,7 +887,7 @@ const App: React.FC = () => {
 
     // Filtro de tareas vencidas
     if (showOverdueOnly) {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getLocalDateString();
       const isOverdue = task.status !== 'done' && task.dueDate < today;
       if (!isOverdue) return false;
     }
@@ -1002,7 +980,7 @@ const App: React.FC = () => {
 
     // 8. Filtro de tareas vencidas
     if (showOverdueOnly) {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getLocalDateString();
       const isOverdue = task.status !== 'done' && task.dueDate < today;
       if (!isOverdue) return false;
     }
@@ -1246,17 +1224,22 @@ const App: React.FC = () => {
             </button>
 
             <div>
-              <h1 className="text-xl md:text-2xl font-bold text-gray-800 truncate max-w-[200px] md:max-w-none">
-                {viewMode === ViewMode.DASHBOARD && 'Dashboard General'}
-                {viewMode === ViewMode.KANBAN && 'Tablero'}
-                {viewMode === ViewMode.GANTT && 'Cronograma'}
-                {viewMode === ViewMode.TEAM && 'Equipo'}
-                {viewMode === ViewMode.TABLE && 'Tabla'}
-                {viewMode === ViewMode.TEAM_MANAGEMENT && 'Gestión Equipo'}
-                {viewMode === ViewMode.CLIENT_MANAGEMENT && 'Clientes'}
-                {viewMode === ViewMode.CLIENT_PERFORMANCE && 'Rendimiento Clientes'}
-                {viewMode === ViewMode.USER_PERFORMANCE && 'Rendimiento Usuarios'}
-              </h1>
+              <div className="flex flex-col md:flex-row md:items-baseline md:gap-3">
+                <h1 className="text-xl md:text-2xl font-bold text-gray-800 truncate max-w-[200px] md:max-w-none">
+                  {viewMode === ViewMode.DASHBOARD && 'Dashboard General'}
+                  {viewMode === ViewMode.KANBAN && 'Tablero'}
+                  {viewMode === ViewMode.GANTT && 'Cronograma'}
+                  {viewMode === ViewMode.TEAM && 'Equipo'}
+                  {viewMode === ViewMode.TABLE && 'Tabla'}
+                  {viewMode === ViewMode.TEAM_MANAGEMENT && 'Gestión Equipo'}
+                  {viewMode === ViewMode.CLIENT_MANAGEMENT && 'Clientes'}
+                  {viewMode === ViewMode.CLIENT_PERFORMANCE && 'Rendimiento Clientes'}
+                  {viewMode === ViewMode.USER_PERFORMANCE && 'Rendimiento Usuarios'}
+                </h1>
+                <span className="text-gray-400 font-medium text-sm md:text-base">
+                  Hola {currentUser?.name.split(' ')[0]} 👋
+                </span>
+              </div>
               <p className="hidden md:block text-sm text-gray-500 mt-1">
                 Mostrando {displayTasks.length} de {displayContextTasks.length} tareas
               </p>
@@ -1266,7 +1249,7 @@ const App: React.FC = () => {
           <div className="flex items-center gap-2 md:gap-4">
             {/* Alerta de tareas vencidas - Compact on mobile */}
             {(() => {
-              const today = new Date().toISOString().split('T')[0];
+              const today = getLocalDateString();
               const overdueTasks = filteredTasks.filter(t =>
                 t.status !== 'done' && t.dueDate < today
               );
@@ -1324,6 +1307,7 @@ const App: React.FC = () => {
             onMotherTasksToggle={setShowMotherTasks}
             onRecurringToggle={setShowRecurringOnly}
             onClearFilters={handleClearFilters}
+            onClearFiltersBySection={handleClearFiltersBySection}
           />
 
           {viewMode === ViewMode.DASHBOARD && (

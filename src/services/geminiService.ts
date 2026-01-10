@@ -1,20 +1,16 @@
 import { Task, User } from "../types";
+import { getLocalDateString, formatLocalDate } from "../utils/dateUtils";
 
 export const generateDailyReport = (tasks: Task[], users: User[]): string => {
-  const todayFormatted = new Date().toLocaleDateString('es-ES', { 
-    weekday: 'long', 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
-  });
+  const todayFormatted = formatLocalDate(getLocalDateString());
 
   // Filtrar tareas pendientes (no "done")
   const pendingTasks = tasks.filter(t => t.status !== 'done');
-  
+
   // Tareas vencidas (fecha límite pasada - comparación de strings YYYY-MM-DD)
-  const todayString = new Date().toISOString().split('T')[0];
+  const todayString = getLocalDateString();
   const overdueTasks = pendingTasks.filter(t => t.dueDate < todayString);
-  
+
   // Ordenar tareas por: prioridad (crítica>alta>media>baja) y fecha (más cercana primero)
   const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
   const sortedTasks = [...pendingTasks].sort((a, b) => {
@@ -53,7 +49,7 @@ export const generateDailyReport = (tasks: Task[], users: User[]): string => {
         .map(id => users.find(u => u.id === id)?.name)
         .filter(Boolean)
         .join(', ') || users.find(u => u.id === task.assigneeId)?.name || 'Sin asignar';
-      const daysOverdue = Math.floor((new Date().getTime() - new Date(task.dueDate).getTime()) / (1000 * 60 * 60 * 24));
+      const daysOverdue = Math.floor((new Date(getLocalDateString()).getTime() - new Date(task.dueDate).getTime()) / (1000 * 60 * 60 * 24));
       const statusLabel = {
         todo: 'Por Hacer',
         inprogress: 'En Progreso',
@@ -84,24 +80,24 @@ export const generateDailyReport = (tasks: Task[], users: User[]): string => {
   Object.entries(tasksByAssignee).forEach(([assignee, assigneeTasks]) => {
     report += `👤 ${assignee.toUpperCase()} (${assigneeTasks.length} tarea(s))\n`;
     report += `${'─'.repeat(50)}\n`;
-    
+
     assigneeTasks.forEach((task, index) => {
       const isOverdue = task.dueDate < todayString;
-      const dueDate = new Date(task.dueDate).toLocaleDateString('es-ES');
+      const dueDate = formatLocalDate(task.dueDate);
       const priorityEmoji = {
         critical: '🔥',
         high: '⚡',
         medium: '📌',
         low: '📝'
       }[task.priority];
-      
+
       const statusLabel = {
         todo: 'Por Hacer',
         inprogress: 'En Progreso',
         review: 'En Revisión',
         done: 'Finalizado'
       }[task.status];
-      
+
       report += `  ${index + 1}. ${priorityEmoji} [${task.priority.toUpperCase()}] ${task.title}\n`;
       report += `     Vence: ${dueDate}${isOverdue ? ' ⚠️ VENCIDA' : ''}\n`;
       report += `     Estado: ${statusLabel}\n`;

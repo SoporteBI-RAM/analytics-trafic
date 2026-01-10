@@ -1,6 +1,7 @@
 import React from 'react';
 import { Task, User } from '../types';
 import { Edit, Trash2 } from 'lucide-react';
+import { getLocalDateString } from '../utils/dateUtils';
 
 interface GanttViewProps {
   tasks: Task[];
@@ -31,44 +32,44 @@ const addDaysToDate = (date: Date, days: number) => {
 
 export const GanttView: React.FC<GanttViewProps> = ({ tasks, users, onEdit, onDelete }) => {
   const sortedTasks = [...tasks].sort((a, b) => a.startDate.localeCompare(b.startDate));
-  
+
   // Calcular rango de fechas
-  const today = new Date();
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  
+  const todayStr = getLocalDateString();
+  const today = new Date(todayStr + 'T12:00:00');
+
   let minDate: Date;
   let maxDate: Date;
-  
+
   if (sortedTasks.length > 0) {
     const earliestTaskDate = dateFromString(sortedTasks[0].startDate);
     minDate = earliestTaskDate < today ? earliestTaskDate : today;
-    
+
     const latestTask = sortedTasks.reduce((latest, task) => {
       const taskEnd = dateFromString(task.dueDate);
       return taskEnd > latest ? taskEnd : latest;
     }, dateFromString(sortedTasks[0].dueDate));
-    
+
     maxDate = latestTask > today ? latestTask : addDaysToDate(today, 30);
   } else {
     minDate = today;
     maxDate = addDaysToDate(today, 30);
   }
-  
+
   minDate = addDaysToDate(minDate, -7);
   maxDate = addDaysToDate(maxDate, 14);
-  
+
   const totalDays = Math.ceil((maxDate.getTime() - minDate.getTime()) / (24 * 60 * 60 * 1000));
   const dates = Array.from({ length: totalDays }, (_, i) => addDaysToDate(minDate, i));
-  
+
   const minDateStr = `${minDate.getFullYear()}-${String(minDate.getMonth() + 1).padStart(2, '0')}-${String(minDate.getDate()).padStart(2, '0')}`;
 
   const getTaskStyle = (task: Task) => {
     const offset = getDiffInDays(task.startDate, minDateStr);
     const duration = getDiffInDays(task.dueDate, task.startDate) + 1;
-    
+
     const left = Math.max(0, offset);
     const width = Math.max(1, duration);
-    
+
     const colors: Record<string, string> = {
       todo: '#e2e8f0',
       inprogress: '#3b82f6',
@@ -88,9 +89,9 @@ export const GanttView: React.FC<GanttViewProps> = ({ tasks, users, onEdit, onDe
 
   const todayOffset = getDiffInDays(todayStr, minDateStr);
   const showTodayLine = todayOffset >= 0 && todayOffset < totalDays;
-  
+
   const scrollRef = React.useRef<HTMLDivElement>(null);
-  
+
   React.useEffect(() => {
     if (scrollRef.current && showTodayLine) {
       const scrollLeft = (todayOffset * 40) - (scrollRef.current.clientWidth / 2);
@@ -102,16 +103,16 @@ export const GanttView: React.FC<GanttViewProps> = ({ tasks, users, onEdit, onDe
     <div className="bg-white rounded-lg shadow border border-gray-200">
       <div className="p-4">
         <h3 className="text-lg font-bold text-gray-800 mb-4">Cronograma de Proyecto</h3>
-        
+
         {/* Contenedor con columna fija */}
         <div className="flex border border-gray-200 rounded-lg overflow-hidden">
-          
+
           {/* COLUMNA FIJA */}
           <div className="w-[280px] flex-shrink-0 bg-gray-50 border-r border-gray-200">
             <div className="h-[60px] flex items-center px-4 border-b border-gray-200 font-semibold text-sm text-gray-700 bg-white">
               Tarea
             </div>
-            
+
             {tasks.map(task => {
               const assignee = users.find(u => u.id === task.assigneeId);
               return (
@@ -128,7 +129,7 @@ export const GanttView: React.FC<GanttViewProps> = ({ tasks, users, onEdit, onDe
                       )}
                     </div>
                     <div className="text-xs text-gray-400 flex items-center gap-1">
-                      {assignee && <img src={assignee.avatar} className="w-4 h-4 rounded-full" alt={assignee.name}/>}
+                      {assignee && <img src={assignee.avatar} className="w-4 h-4 rounded-full" alt={assignee.name} />}
                       {assignee?.name.split(' ')[0]}
                     </div>
                   </div>
@@ -156,11 +157,11 @@ export const GanttView: React.FC<GanttViewProps> = ({ tasks, users, onEdit, onDe
               );
             })}
           </div>
-          
+
           {/* ÁREA SCROLLABLE */}
           <div ref={scrollRef} className="flex-1 overflow-x-auto">
             <div style={{ width: `${totalDays * 40}px` }}>
-              
+
               {/* Headers */}
               <div style={{ display: 'grid', gridTemplateColumns: `repeat(${totalDays}, 40px)` }} className="h-[60px] border-b border-gray-200 bg-white">
                 {dates.map((date, i) => {
@@ -178,7 +179,7 @@ export const GanttView: React.FC<GanttViewProps> = ({ tasks, users, onEdit, onDe
               {/* Barras */}
               <div className="relative">
                 {showTodayLine && (
-                  <div 
+                  <div
                     className="absolute top-0 bottom-0 w-0.5 bg-blue-500 z-10 pointer-events-none"
                     style={{ left: `${todayOffset * 40}px` }}
                   >
@@ -192,7 +193,7 @@ export const GanttView: React.FC<GanttViewProps> = ({ tasks, users, onEdit, onDe
                   return (
                     <div key={task.id} style={{ display: 'grid', gridTemplateColumns: `repeat(${totalDays}, 40px)`, height: '48px' }} className="items-center border-b border-gray-100 hover:bg-gray-50/50 relative">
                       {getDiffInDays(task.dueDate, minDateStr) >= 0 && (
-                        <div 
+                        <div
                           className="h-6 rounded-md shadow-sm relative group opacity-90 hover:opacity-100 transition-opacity"
                           style={getTaskStyle(task)}
                         >
@@ -208,7 +209,7 @@ export const GanttView: React.FC<GanttViewProps> = ({ tasks, users, onEdit, onDe
             </div>
           </div>
         </div>
-        
+
         {/* Leyenda FIJA */}
         <div className="mt-6 flex gap-4 text-xs text-gray-500">
           <div className="flex items-center gap-1"><div className="w-3 h-3 bg-[#e2e8f0] rounded"></div> Por Hacer</div>

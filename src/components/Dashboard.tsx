@@ -12,6 +12,7 @@ import {
     X,
     ExternalLink
 } from 'lucide-react';
+import { getLocalDateString } from '../utils/dateUtils';
 
 interface DashboardProps {
     tasks: Task[];
@@ -350,9 +351,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ tasks, contextTasks, users
                                                 <h4 className="font-medium text-gray-800 group-hover:text-blue-600 transition-colors">{task.title}</h4>
                                                 <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                                                     <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${task.priority === 'critical' ? 'bg-red-100 text-red-700' :
-                                                            task.priority === 'high' ? 'bg-orange-100 text-orange-700' :
-                                                                task.priority === 'medium' ? 'bg-blue-100 text-blue-700' :
-                                                                    'bg-green-100 text-green-700'
+                                                        task.priority === 'high' ? 'bg-orange-100 text-orange-700' :
+                                                            task.priority === 'medium' ? 'bg-blue-100 text-blue-700' :
+                                                                'bg-green-100 text-green-700'
                                                         }`}>
                                                         {task.priority === 'critical' ? 'Critica' :
                                                             task.priority === 'high' ? 'Alta' :
@@ -360,9 +361,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ tasks, contextTasks, users
                                                     </span>
 
                                                     <span className={`text-[10px] px-1.5 py-0.5 rounded ${task.status === 'done' ? 'bg-green-100 text-green-700' :
-                                                            task.status === 'inprogress' ? 'bg-blue-100 text-blue-700' :
-                                                                task.status === 'review' ? 'bg-purple-100 text-purple-700' :
-                                                                    'bg-gray-100 text-gray-600'
+                                                        task.status === 'inprogress' ? 'bg-blue-100 text-blue-700' :
+                                                            task.status === 'review' ? 'bg-purple-100 text-purple-700' :
+                                                                'bg-gray-100 text-gray-600'
                                                         }`}>
                                                         {STATUS_LABELS[task.status]}
                                                     </span>
@@ -375,9 +376,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ tasks, contextTasks, users
                                                 </div>
                                             </div>
                                             <div className="text-right">
-                                                <div className={`text-xs font-medium ${new Date(task.dueDate) < new Date() && task.status !== 'done' ? 'text-red-500' : 'text-gray-500'
+                                                <div className={`text-xs font-medium ${task.dueDate < getLocalDateString() && task.status !== 'done' ? 'text-red-500' : 'text-gray-500'
                                                     }`}>
-                                                    {new Date(task.dueDate).toLocaleDateString('es-ES')}
+                                                    {(() => {
+                                                        const [year, month, day] = task.dueDate.split('T')[0].split('-');
+                                                        return `${parseInt(day)}/${parseInt(month)}/${year}`;
+                                                    })()}
                                                 </div>
                                             </div>
                                         </div>

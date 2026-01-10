@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Task, Client, User } from '../types';
-import { TrendingUp, CheckCircle2, Clock, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Building2, CheckCircle2, Clock, AlertCircle, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
+import { getLocalDateString, formatLocalDate } from '../utils/dateUtils';
 
 interface ClientPerformanceProps {
     tasks: Task[];
@@ -37,7 +38,7 @@ const TaskDropdown: React.FC<{ title: string; tasks: Task[]; color: string; icon
         <div className="bg-gray-50 rounded-lg">
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className={`w-full p-3 flex items-center justify-between hover:bg-gray-100 rounded-lg transition-colors ${color}`}
+                className={`w - full p - 3 flex items - center justify - between hover: bg - gray - 100 rounded - lg transition - colors ${color} `}
             >
                 <div className="flex items-center gap-2">
                     {icon}
@@ -54,16 +55,15 @@ const TaskDropdown: React.FC<{ title: string; tasks: Task[]; color: string; icon
                                 <div className="flex-1">
                                     <p className="font-medium text-gray-800 line-clamp-1">{task.title}</p>
                                     <div className="flex items-center gap-2 mt-1">
-                                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                                            task.status === 'done' ? 'bg-green-100 text-green-700' :
+                                        <span className={`text - [10px] px - 1.5 py - 0.5 rounded ${task.status === 'done' ? 'bg-green-100 text-green-700' :
                                             task.status === 'inprogress' ? 'bg-blue-100 text-blue-700' :
-                                            task.status === 'review' ? 'bg-amber-100 text-amber-700' :
-                                            'bg-gray-100 text-gray-600'
-                                        }`}>
+                                                task.status === 'review' ? 'bg-amber-100 text-amber-700' :
+                                                    'bg-gray-100 text-gray-600'
+                                            } `}>
                                             {STATUS_LABELS[task.status]}
                                         </span>
                                         <span className="text-[10px] text-gray-500">
-                                            {new Date(task.dueDate).toLocaleDateString('es-ES')}
+                                            {formatLocalDate(task.dueDate)}
                                         </span>
                                     </div>
                                 </div>
@@ -84,7 +84,7 @@ const TaskDropdown: React.FC<{ title: string; tasks: Task[]; color: string; icon
 
 export const ClientPerformance: React.FC<ClientPerformanceProps> = ({ tasks, clients, currentUser }) => {
     const clientStats = useMemo(() => {
-        const today = new Date().toISOString().split('T')[0];
+        const today = getLocalDateString();
         const statsMap = new Map<string | null, ClientStats>();
 
         // Initialize stats for all clients
@@ -210,13 +210,13 @@ export const ClientPerformance: React.FC<ClientPerformanceProps> = ({ tasks, cli
                             </div>
                             <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
                                 <div
-                                    className={`h-full rounded-full transition-all duration-500 ${stats.completionRate >= 80
-                                            ? 'bg-green-500'
-                                            : stats.completionRate >= 50
-                                                ? 'bg-ram-gold'
-                                                : 'bg-red-500'
-                                        }`}
-                                    style={{ width: `${stats.completionRate}%` }}
+                                    className={`h - full rounded - full transition - all duration - 500 ${stats.completionRate >= 80
+                                        ? 'bg-green-500'
+                                        : stats.completionRate >= 50
+                                            ? 'bg-ram-gold'
+                                            : 'bg-red-500'
+                                        } `}
+                                    style={{ width: `${stats.completionRate}% ` }}
                                 />
                             </div>
                         </div>

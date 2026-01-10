@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { User, Status, Priority, Client } from '../types';
-import { Filter, X, ChevronDown, ChevronUp, Search, AlertCircle, Check, Calendar } from 'lucide-react';
+import { Filter, X, ChevronDown, ChevronUp, Search, AlertCircle, Check } from 'lucide-react';
 
 interface FiltersProps {
-  currentUser: User; // Need role
+  currentUser: User;
   users: User[];
   clients: Client[];
   selectedStatuses: Status[];
@@ -27,6 +27,7 @@ interface FiltersProps {
   onMotherTasksToggle: (value: boolean) => void;
   onRecurringToggle: (value: boolean) => void;
   onClearFilters: () => void;
+  onClearFiltersBySection: (section: 'status' | 'priority' | 'assignee' | 'client' | 'dates') => void;
 }
 
 export const Filters: React.FC<FiltersProps> = ({
@@ -53,7 +54,8 @@ export const Filters: React.FC<FiltersProps> = ({
   onOverdueToggle,
   onMotherTasksToggle,
   onRecurringToggle,
-  onClearFilters
+  onClearFilters,
+  onClearFiltersBySection
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -76,7 +78,7 @@ export const Filters: React.FC<FiltersProps> = ({
 
   const hasActiveFilters = selectedStatuses.length > 0 ||
     selectedPriorities.length > 0 ||
-    (currentUser.role !== 'Analyst' && selectedAssignees.length > 0) || // Analyst always has "filter", ignore for badge
+    (currentUser.role !== 'Analyst' && selectedAssignees.length > 0) ||
     selectedClients.length > 0 ||
     searchTaskName.length > 0 ||
     showOverdueOnly ||
@@ -141,6 +143,7 @@ export const Filters: React.FC<FiltersProps> = ({
               count={selectedStatuses.length}
               labelMap={statusLabels}
               selectedKeys={selectedStatuses}
+              onClear={() => onClearFiltersBySection('status')}
             >
               {statuses.map(status => (
                 <label key={status} className="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors group">
@@ -164,6 +167,7 @@ export const Filters: React.FC<FiltersProps> = ({
               count={selectedPriorities.length}
               labelMap={priorityLabels}
               selectedKeys={selectedPriorities}
+              onClear={() => onClearFiltersBySection('priority')}
             >
               {priorities.map(priority => (
                 <label key={priority} className="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors group">
@@ -197,6 +201,7 @@ export const Filters: React.FC<FiltersProps> = ({
                   count={selectedAssignees.length}
                   customLabel={selectedAssignees.length > 0 ? `${selectedAssignees.length} seleccionados` : 'Todos'}
                   isFullWidth
+                  onClear={() => onClearFiltersBySection('assignee')}
                 >
                   {users.map(user => (
                     <label key={user.id} className="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded-lg transition-colors group">
@@ -223,7 +228,18 @@ export const Filters: React.FC<FiltersProps> = ({
 
             {/* Rangos de Fecha */}
             <div className="space-y-2">
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Fecha Vencimiento</label>
+              <div className="flex justify-between items-center mb-2">
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Fecha Vencimiento</label>
+                {(dateFrom || dateTo) && (
+                  <button
+                    onClick={() => onClearFiltersBySection('dates')}
+                    className="text-[10px] text-gray-400 hover:text-red-500 font-medium transition-colors flex items-center gap-0.5"
+                  >
+                    <X size={10} />
+                    Limpiar
+                  </button>
+                )}
+              </div>
               <div className="flex gap-2">
                 <div className="relative flex-1">
                   <input
@@ -253,6 +269,7 @@ export const Filters: React.FC<FiltersProps> = ({
                 count={selectedClients.length}
                 customLabel={selectedClients.length > 0 ? `${selectedClients.length} seleccionados` : 'Todos'}
                 isFullWidth
+                onClear={() => onClearFiltersBySection('client')}
               >
                 {clients.length === 0 ? (
                   <p className="text-sm text-gray-400 p-2 italic">No hay clientes</p>
@@ -354,6 +371,7 @@ interface FilterDropdownProps {
   children: React.ReactNode;
   customLabel?: string;
   isFullWidth?: boolean;
+  onClear?: () => void;
 }
 
 const FilterDropdown: React.FC<FilterDropdownProps> = ({
@@ -363,7 +381,8 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
   selectedKeys,
   children,
   customLabel,
-  isFullWidth = false
+  isFullWidth = false,
+  onClear
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -388,7 +407,18 @@ const FilterDropdown: React.FC<FilterDropdownProps> = ({
 
   return (
     <div className="relative" ref={dropdownRef}>
-      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">{label}</label>
+      <div className="flex justify-between items-center mb-2">
+        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider">{label}</label>
+        {onClear && count > 0 && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onClear(); }}
+            className="text-[10px] text-gray-400 hover:text-red-500 font-medium transition-colors flex items-center gap-0.5"
+          >
+            <X size={10} />
+            Limpiar
+          </button>
+        )}
+      </div>
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`w-full flex items-center justify-between px-3 py-2 bg-white border ${isOpen ? 'border-blue-500 ring-1 ring-blue-500' : 'border-gray-200 hover:border-gray-300'} rounded-lg text-sm transition-all text-left shadow-sm`}

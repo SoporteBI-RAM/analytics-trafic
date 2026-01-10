@@ -1,6 +1,7 @@
 import React from 'react';
 import { Task, User } from '../types';
 import { Calendar } from 'lucide-react';
+import { getLocalDateString } from '../utils/dateUtils';
 
 interface TaskCardProps {
   task: Task;
@@ -19,7 +20,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, users, onDragStart }) 
   const assignees = users.filter(u => task.assigneeIds?.includes(u.id) || u.id === task.assigneeId);
 
   // Comparar fechas en formato YYYY-MM-DD (sin conversión a Date para evitar zona horaria)
-  const today = new Date().toISOString().split('T')[0]; // "2025-12-09"
+  const today = getLocalDateString(); // "2025-12-09"
   const isOverdue = task.status !== 'done' && task.dueDate < today;
 
   return (

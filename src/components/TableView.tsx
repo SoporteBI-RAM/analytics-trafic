@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Task, User, Client } from '../types';
 import { Table, Download, Edit, Trash2, FileSpreadsheet, FileText } from 'lucide-react';
+import { getLocalDateString, formatLocalDate } from '../utils/dateUtils';
 
 interface TableViewProps {
   tasks: Task[];
@@ -41,67 +42,69 @@ export const TableView: React.FC<TableViewProps> = ({ tasks, users, clients, onE
     done: 'bg-emerald-100 text-emerald-700'
   };
 
+  // Prioridades numéricas para ordenamiento
+  const priorityLevels: Record<string, number> = {
+    critical: 4,
+    high: 3,
+    medium: 2,
+    low: 1
+  };
+
   // Ordenar tareas
   const sortedTasks = [...tasks].sort((a, b) => {
-    let aValue: string, bValue: string;
+    let result = 0;
 
     switch (sortField) {
       case 'client':
-        aValue = getClientName(a.clientId);
-        bValue = getClientName(b.clientId);
+        result = getClientName(a.clientId).localeCompare(getClientName(b.clientId));
         break;
       case 'dueDate':
-        aValue = a.dueDate;
-        bValue = b.dueDate;
+        result = a.dueDate.localeCompare(b.dueDate);
         break;
       case 'status':
-        aValue = a.status;
-        bValue = b.status;
+        result = a.status.localeCompare(b.status);
         break;
       case 'title':
-        aValue = a.title;
-        bValue = b.title;
+        result = a.title.localeCompare(b.title);
+        break;
+      case 'priority' as any:
+        result = priorityLevels[a.priority] - priorityLevels[b.priority];
         break;
       default:
         return 0;
     }
 
-    if (sortOrder === 'asc') {
-      return aValue.localeCompare(bValue);
-    } else {
-      return bValue.localeCompare(aValue);
-    }
+    return sortOrder === 'asc' ? result : -result;
   });
 
-  const handleSort = (field: typeof sortField) => {
+  const handleSort = (field: typeof sortField | 'priority') => {
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
     } else {
-      setSortField(field);
+      setSortField(field as any);
       setSortOrder('asc');
     }
   };
 
   // Exportar a CSV
   const exportToCSV = () => {
-    const headers = ['Cliente', 'Tarea', 'Fecha Entrega', 'Estado', 'Responsable(s)'];
-    const rows = sortedTasks.map(task => [
-      getClientName(task.clientId),
-      task.title,
-      new Date(task.dueDate).toLocaleDateString('es-ES'),
-      statusLabels[task.status],
-      getAssigneeNames(task)
-    ]);
-
+    const headers = ['Cliente', 'Tarea', 'Fecha Entrega', 'Prioridad', 'Estado', 'Responsable(s)'];
     const csvContent = [
       headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+      ...tasks.map(task => [
+        getClientName(task.clientId),
+        task.title,
+        formatLocalDate(task.dueDate),
+        task.priority,
+        task.status,
+        (task.assigneeIds || []).map(id => users.find(u => u.id === id)?.name).join('; ')
+      ].map(e => `"${e}"`).join(','))
     ].join('\n');
 
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `tareas_${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `tareas_${getLocalDateString()}.csv`;
     link.click();
   };
 
@@ -112,7 +115,7 @@ export const TableView: React.FC<TableViewProps> = ({ tasks, users, clients, onE
       getClientName(task.clientId),
       task.title,
       task.description,
-      new Date(task.dueDate).toLocaleDateString('es-ES'),
+      formatLocalDate(task.dueDate),
       statusLabels[task.status],
       task.priority.toUpperCase(),
       getAssigneeNames(task)
@@ -126,7 +129,7 @@ export const TableView: React.FC<TableViewProps> = ({ tasks, users, clients, onE
     const blob = new Blob(['\uFEFF' + tsvContent], { type: 'application/vnd.ms-excel;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `tareas_${new Date().toISOString().split('T')[0]}.xls`;
+    link.download = `tareas_${getLocalDateString()}.xls`;
     link.click();
   };
 
@@ -167,28 +170,31 @@ export const TableView: React.FC<TableViewProps> = ({ tasks, users, clients, onE
         <table className="w-full">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th 
+              <th
                 onClick={() => handleSort('client')}
                 className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
               >
                 Cliente {sortField === 'client' && (sortOrder === 'asc' ? '↑' : '↓')}
               </th>
-              <th 
+              <th
                 onClick={() => handleSort('title')}
                 className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
               >
                 Tarea {sortField === 'title' && (sortOrder === 'asc' ? '↑' : '↓')}
               </th>
-              <th 
+              <th
                 onClick={() => handleSort('dueDate')}
                 className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
               >
                 Fecha Entrega {sortField === 'dueDate' && (sortOrder === 'asc' ? '↑' : '↓')}
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                Prioridad
+              <th
+                onClick={() => handleSort('priority' as any)}
+                className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+              >
+                Prioridad {sortField as any === 'priority' && (sortOrder === 'asc' ? '↑' : '↓')}
               </th>
-              <th 
+              <th
                 onClick={() => handleSort('status')}
                 className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
               >
@@ -204,11 +210,11 @@ export const TableView: React.FC<TableViewProps> = ({ tasks, users, clients, onE
           </thead>
           <tbody className="divide-y divide-gray-200">
             {sortedTasks.map((task) => {
-              const isOverdue = task.status !== 'done' && task.dueDate < new Date().toISOString().split('T')[0];
-              
+              const isOverdue = task.status !== 'done' && task.dueDate < getLocalDateString();
+
               return (
-                <tr 
-                  key={task.id} 
+                <tr
+                  key={task.id}
                   className="hover:bg-gray-50 transition-colors"
                 >
                   <td className="px-4 py-3 text-sm text-gray-700">
@@ -231,21 +237,20 @@ export const TableView: React.FC<TableViewProps> = ({ tasks, users, clients, onE
                   </td>
                   <td className="px-4 py-3 text-sm">
                     <span className={isOverdue ? 'text-red-600 font-semibold' : 'text-gray-700'}>
-                      {formatDate(task.dueDate)}
+                      {formatLocalDate(task.dueDate)}
                       {isOverdue && ' ⚠️'}
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      task.priority === 'critical' ? 'bg-red-100 text-red-700' :
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${task.priority === 'critical' ? 'bg-red-100 text-red-700' :
                       task.priority === 'high' ? 'bg-orange-100 text-orange-700' :
-                      task.priority === 'medium' ? 'bg-blue-100 text-blue-700' :
-                      'bg-slate-100 text-slate-700'
-                    }`}>
+                        task.priority === 'medium' ? 'bg-blue-100 text-blue-700' :
+                          'bg-slate-100 text-slate-700'
+                      }`}>
                       {task.priority === 'critical' ? 'Crítica' :
-                       task.priority === 'high' ? 'Alta' :
-                       task.priority === 'medium' ? 'Media' :
-                       'Baja'}
+                        task.priority === 'high' ? 'Alta' :
+                          task.priority === 'medium' ? 'Media' :
+                            'Baja'}
                     </span>
                   </td>
                   <td className="px-4 py-3">
