@@ -92,18 +92,40 @@ function handleTaskOperation(sheet, operation, task) {
 
   if (operation === 'create') {
     tasksSheet.appendRow([
-      task.id, task.title, task.description, task.status, task.priority,
-      task.assigneeId || '', task.startDate, task.dueDate,
-      (task.tags || []).join(','), (task.assigneeIds || []).join(','), task.clientId || ''
+      task.id,                                          // 0: id
+      task.title,                                       // 1: tittle
+      task.description,                                 // 2: description
+      task.status,                                      // 3: status
+      task.priority,                                    // 4: priority
+      task.assigneeId || '',                            // 5: assigneeId
+      task.startDate,                                   // 6: startDate
+      task.dueDate,                                     // 7: dueDate
+      (task.tags || []).join(','),                      // 8: tags
+      (task.assigneeIds || []).join(','),               // 9: user (assigneeIds)
+      task.clientId || '',                              // 10: clientId
+      task.completedDate || '',                         // 11: completedDate
+      task.recurrence ? JSON.stringify(task.recurrence) : '',  // 12: recurrence
+      task.parentTaskId || ''                           // 13: parentTaskId
     ]);
   } else if (operation === 'update') {
     const data = tasksSheet.getDataRange().getValues();
     for (let i = 1; i < data.length; i++) {
       if (data[i][0] === task.id) {
-        tasksSheet.getRange(i + 1, 1, 1, 11).setValues([[
-          task.id, task.title, task.description, task.status, task.priority,
-          task.assigneeId || '', task.startDate, task.dueDate,
-          (task.tags || []).join(','), (task.assigneeIds || []).join(','), task.clientId || ''
+        tasksSheet.getRange(i + 1, 1, 1, 14).setValues([[
+          task.id,                                          // 0: id
+          task.title,                                       // 1: tittle
+          task.description,                                 // 2: description
+          task.status,                                      // 3: status
+          task.priority,                                    // 4: priority
+          task.assigneeId || '',                            // 5: assigneeId
+          task.startDate,                                   // 6: startDate
+          task.dueDate,                                     // 7: dueDate
+          (task.tags || []).join(','),                      // 8: tags
+          (task.assigneeIds || []).join(','),               // 9: user (assigneeIds)
+          task.clientId || '',                              // 10: clientId
+          task.completedDate || '',                         // 11: completedDate
+          task.recurrence ? JSON.stringify(task.recurrence) : '',  // 12: recurrence
+          task.parentTaskId || ''                           // 13: parentTaskId
         ]]);
         break;
       }

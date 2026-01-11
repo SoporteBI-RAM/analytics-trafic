@@ -83,7 +83,7 @@ export const sheetsService = {
   async getTasks() {
     try {
       console.log('🔄 Cargando tareas de Sheets...');
-      const range = 'Tasks!A:N'; // Solo hasta N (parentTaskId)
+      const range = 'Tasks!A:N'; // Hasta N (14 columnas: id...parentTaskId)
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}`;
       
       if (!API_KEY || !SHEET_ID) {
