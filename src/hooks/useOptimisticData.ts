@@ -28,30 +28,36 @@ export function useOptimisticData<T extends { id: string }>(
   const [data, setData] = useState<T[]>(initialData);
   const [isSyncing, setIsSyncing] = useState(false);
   const syncQueueRef = useRef<SyncOperation<T>[]>([]);
+  const processingRef = useRef(false);
 
   // Procesar cola de sincronización
   const processSyncQueue = useCallback(async () => {
-    if (syncQueueRef.current.length === 0 || isSyncing) return;
+    if (syncQueueRef.current.length === 0 || processingRef.current) return;
 
+    processingRef.current = true;
     setIsSyncing(true);
 
-    while (syncQueueRef.current.length > 0) {
-      const operation = syncQueueRef.current[0];
+    try {
+      while (syncQueueRef.current.length > 0) {
+        const operation = syncQueueRef.current[0];
 
-      try {
-        await options.syncFn(operation.operation, operation.item);
-        options.onSyncSuccess?.(operation);
-        syncQueueRef.current.shift(); // Remover de la cola
-      } catch (error) {
-        console.error('Error sincronizando:', error);
-        options.onSyncError?.(error as Error, operation);
-        // No remover de la cola - reintentar después
-        break;
+        try {
+          await options.syncFn(operation.operation, operation.item);
+          options.onSyncSuccess?.(operation);
+          // Solo si éxito removemos
+          syncQueueRef.current.shift();
+        } catch (error) {
+          console.error('Error sincronizando:', error);
+          options.onSyncError?.(error as Error, operation);
+          // Romper loop para reintentar luego
+          break;
+        }
       }
+    } finally {
+      processingRef.current = false;
+      setIsSyncing(false);
     }
-
-    setIsSyncing(false);
-  }, [isSyncing, options]);
+  }, [options]);
 
   // Agregar a cola de sincronización
   const queueSync = useCallback((operation: SyncOperation<T>) => {
