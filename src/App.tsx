@@ -971,7 +971,7 @@ const App: React.FC = () => {
       `}>
         <div className="p-6 border-b border-gray-100 flex justify-between items-center">
           <div className="flex items-center justify-center flex-1">
-            <img src="/logo/logo.png" alt="Right Angle Media Logo" className="h-10 object-contain" />
+            <img src="./logo/logo.png" alt="Right Angle Media Logo" className="h-10 object-contain" />
           </div>
           {/* Close button for mobile */}
           <button

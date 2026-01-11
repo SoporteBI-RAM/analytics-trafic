@@ -60,7 +60,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
         <div className="text-center mb-8">
           <div className="flex justify-center mb-6">
             <img
-              src="/logo/logo.png"
+              src="./logo/logo.png"
               alt="Right Angle Media Logo"
               className="h-24 object-contain"
             />
