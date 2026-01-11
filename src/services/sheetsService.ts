@@ -333,7 +333,6 @@ export const sheetsService = {
       console.warn('APPS_SCRIPT_URL no configurada');
       return;
     }
-    console.log('🔗 Usando Apps Script URL:', APPS_SCRIPT_URL); // Debug URL
 
     try {
       // Preparar task sin instances (Apps Script actual no lo soporta)
@@ -341,12 +340,6 @@ export const sheetsService = {
         ...task,
         instances: undefined // NO enviar instances
       };
-
-      console.log(`📤 Enviando tarea a Sheets (${operation}):`, {
-        id: taskForSheets.id,
-        recurrence: taskForSheets.recurrence, // Verificando recurrencia
-        fullPayload: taskForSheets
-      });
 
       const response = await fetch(APPS_SCRIPT_URL, {
         method: 'POST',
@@ -360,12 +353,9 @@ export const sheetsService = {
       }
 
       const result = await response.json();
-      console.log('📬 Respuesta del server:', result);
 
       if (!result.success) {
         console.error('❌ Error devuelto por el script:', result.error);
-      } else {
-        console.log(`✅ Tarea ${operation} guardada correctamente en Sheets`);
       }
     } catch (error) {
       console.error(`❌ Error ${operation} tarea:`, error);
