@@ -298,124 +298,181 @@ function handleUserOperation(sheet, operation, user) {
 }
 
 // ============== GENERACIÓN DE TAREAS RECURRENTES (BACKEND) ==============
+// ============== PROCESO DIARIO AUTOMÁTICO (LEGACY RESTAURADO) ==============
 function processRecurringTasks() {
   const lock = LockService.getScriptLock();
+
   try {
-    lock.waitLock(600000);
+    // Intentar obtener el lock (evita ejecuciones simultáneas)
+    lock.waitLock(30000); // 30 segundos max
   } catch (e) {
-    console.log('No se pudo obtener el bloqueo. Otra instancia podría estar ejecutándose.');
+    console.log('No se pudo obtener el lock. Otra ejecución en curso.');
     return;
   }
 
   try {
     const sheet = SpreadsheetApp.getActiveSpreadsheet();
     const tasksSheet = sheet.getSheetByName('Tasks');
+
     if (!tasksSheet) {
-      console.log('No se encontró la hoja "Tasks".');
+      console.log('ERROR: Hoja Tasks no encontrada');
       return;
     }
 
-    const allData = tasksSheet.getDataRange().getValues();
-    const headers = allData[0];
-    const tasks = allData.slice(1).map(row => {
-      const task = {};
-      headers.forEach((header, i) => {
-        task[header] = row[i];
-      });
-      return task;
-    });
+    const now = new Date();
+    const today = Utilities.formatDate(now, 'GMT-5', 'yyyy-MM-dd');
+    const todayDate = now;
+    const dayOfWeek = now.getDay();
+    const dayOfMonth = now.getDate();
 
-    const newGeneratedTasks = [];
-    const parentTasks = tasks.filter(t => t.recurrence);
+    console.log(`🌅 Proceso diario iniciado para: ${today} (día ${dayOfWeek})`);
 
-    parentTasks.forEach(task => {
+    // Leer todas las tareas
+    const data = tasksSheet.getDataRange().getValues();
+    const headers = data[0];
+
+    // Encontrar índices de columnas importantes (Usando nombres exactos del legacy)
+    const colId = headers.indexOf('id');
+    // Soporte para 'tittle' (typo legacy) o 'title'
+    let colTitle = headers.indexOf('tittle');
+    if (colTitle === -1) colTitle = headers.indexOf('title');
+
+    const colDescription = headers.indexOf('description');
+    const colStatus = headers.indexOf('status');
+    const colPriority = headers.indexOf('priority');
+    const colAssigneeId = headers.indexOf('assigneeId');
+    const colStartDate = headers.indexOf('startDate');
+    const colDueDate = headers.indexOf('dueDate');
+    const colTags = headers.indexOf('tags');
+    const colAssigneeIds = headers.indexOf('assigneeIds');
+    const colClientId = headers.indexOf('clientId');
+    const colCompletedDate = headers.indexOf('completedDate');
+    const colRecurrence = headers.indexOf('recurrence');
+    const colParentTaskId = headers.indexOf('parentTaskId');
+
+    const tasks = data.slice(1); // Sin headers
+    const newChildTasks = [];
+
+    // Procesar cada tarea madre
+    for (let i = 0; i < tasks.length; i++) {
+      const row = tasks[i];
+      const recurrenceJson = row[colRecurrence];
+      const parentTaskId = row[colParentTaskId];
+
+      // Solo procesar tareas madre (sin parentTaskId y con recurrence)
+      if (parentTaskId || !recurrenceJson) continue;
+
       let recurrence;
       try {
-        recurrence = JSON.parse(task.recurrence);
+        recurrence = JSON.parse(recurrenceJson);
       } catch (e) {
-        console.log('Error al parsear la recurrencia para la tarea: ' + task.title);
-        return;
+        console.log(`Error parseando recurrence de tarea ${row[colId]}: ${e}`);
+        continue;
       }
 
-      if (recurrence && recurrence.enabled) {
-        const startDate = new Date(task.startDate);
-        const endDate = new Date(task.dueDate);
+      if (!recurrence || !recurrence.enabled) continue;
 
-        const dayMap = {
-          'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3,
-          'thursday': 4, 'friday': 5, 'saturday': 6
-        };
+      // Verificar rango de fechas
+      const startDate = new Date(row[colStartDate]);
+      // Fix fecha fin: si no hay endDate en recurrence, usar dueDate
+      const endDate = new Date(recurrence.endDate || row[colDueDate]);
 
-        let currentDate = new Date(startDate);
-        let safetyCounter = 0;
+      // Verificar si la fecha actual está dentro del rango
+      // Normalizamos fechas a string para comparar solo YYYY-MM-DD si es necesario, 
+      // pero la comparación de objetos Date básicos funciona para > <
+      if (now < startDate) continue; // Aún no empieza
 
-        while (currentDate <= endDate && safetyCounter < 366) {
-          safetyCounter++;
-          const dayOfWeek = currentDate.getDay();
+      // Para endDate, comparamos que hoy no sea mayor al final del día de endDate
+      // Simplemente: si hoy (YYYY-MM-DD) es mayor que endDate (YYYY-MM-DD) -> break
+      const todayStr = today;
+      const endDateStr = Utilities.formatDate(endDate, 'GMT-5', 'yyyy-MM-dd');
+      if (todayStr > endDateStr) continue;
 
-          let shouldCreate = false;
 
-          if (recurrence.frequency === 'weekly') {
-            if (recurrence.days && recurrence.days.includes(dayOfWeek)) {
-              shouldCreate = true;
-            }
-            else if (recurrence.daysOfWeek && Array.isArray(recurrence.daysOfWeek)) {
-              const targetDays = recurrence.daysOfWeek.map(d => dayMap[d.toLowerCase()]);
-              if (targetDays.includes(dayOfWeek)) {
-                shouldCreate = true;
-              }
-            }
-          }
-          else if (recurrence.frequency === 'daily') {
-            shouldCreate = true;
-          }
-          else if (recurrence.frequency === 'monthly') {
-            if (currentDate.getDate() === recurrence.dayOfMonth) {
-              shouldCreate = true;
-            }
-          }
+      // Verificar si debe crear tarea hoy según frecuencia
+      let shouldCreate = false;
 
-          if (shouldCreate) {
-            const dateStr = Utilities.formatDate(currentDate, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      if (recurrence.frequency === 'daily') {
+        shouldCreate = true;
+      } else if (recurrence.frequency === 'weekly') {
+        const targetDays = recurrence.daysOfWeek
+          ? recurrence.daysOfWeek.map(d => {
+            const map = { 'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3, 'thursday': 4, 'friday': 5, 'saturday': 6 };
+            return map[d.toLowerCase()] !== undefined ? map[d.toLowerCase()] : -1;
+          })
+          : (recurrence.days || []); // Fallback a legacy 'days'
 
-            const exists = tasks.some(t => t.parentTaskId === task.id && t.dueDate === dateStr) ||
-              newGeneratedTasks.some(t => t.parentTaskId === task.id && t.dueDate === dateStr);
+        shouldCreate = targetDays.indexOf(dayOfWeek) !== -1;
+      } else if (recurrence.frequency === 'monthly') {
+        const targetDay = recurrence.dayOfMonth || 1;
+        shouldCreate = dayOfMonth === targetDay;
+      }
 
-            if (!exists) {
-              const newId = 't' + new Date().getTime() + '_' + Math.random().toString(36).substr(2, 9);
-              const newTask = [
-                newId,
-                `${task.title} (${dateStr})`,
-                task.description || '',
-                'todo',
-                task.priority || 'medium',
-                task.assigneeId || '',
-                dateStr,
-                dateStr,
-                task.tags || '',
-                task.assigneeIds || '',
-                task.clientId || '',
-                '',
-                '',
-                task.id
-              ];
-              newGeneratedTasks.push(newTask);
-            }
-          }
-          currentDate.setDate(currentDate.getDate() + 1);
+      if (!shouldCreate) {
+        // console.log(`  ⏭️ "${row[colTitle]}" - Hoy no coincide`);
+        continue;
+      }
+
+      // Verificar si ya existe tarea hija para H O Y
+      const existsToday = tasks.some(t => {
+        if (t[colParentTaskId] !== row[colId]) return false;
+
+        // Convertir la fecha de la tarea existente a string YYYY-MM-DD para comparar
+        let taskDateStr = t[colStartDate];
+        if (taskDateStr instanceof Date) {
+          taskDateStr = Utilities.formatDate(taskDateStr, 'GMT-5', 'yyyy-MM-dd');
         }
-      }
-    });
+        return taskDateStr === today;
+      });
 
-    if (newGeneratedTasks.length > 0) {
-      tasksSheet.getRange(tasksSheet.getLastRow() + 1, 1, newGeneratedTasks.length, newGeneratedTasks[0].length).setValues(newGeneratedTasks);
-      console.log(`Se generaron ${newGeneratedTasks.length} nuevas tareas recurrentes.`);
-    } else {
-      console.log('No se generaron nuevas tareas recurrentes.');
+      if (existsToday) {
+        console.log(`  ℹ️ "${row[colTitle]}" - Ya existe tarea para hoy`);
+        continue;
+      }
+
+      // Crear tarea hija
+      console.log(`  ✅ Creando tarea hija para "${row[colTitle]}"`);
+
+      const childId = 't' + new Date().getTime() + '_child_' + today + '_' + Math.floor(Math.random() * 1000);
+      const childTitle = `${row[colTitle]} (${today})`;
+
+      const childRow = new Array(headers.length).fill('');
+
+      // Mapear columnas usando índices encontrados
+      if (colId > -1) childRow[colId] = childId;
+      if (colTitle > -1) childRow[colTitle] = childTitle;
+      if (colDescription > -1) childRow[colDescription] = row[colDescription];
+      if (colStatus > -1) childRow[colStatus] = 'todo';
+      if (colPriority > -1) childRow[colPriority] = row[colPriority];
+      if (colAssigneeId > -1) childRow[colAssigneeId] = row[colAssigneeId];
+      if (colStartDate > -1) childRow[colStartDate] = today;
+      if (colDueDate > -1) childRow[colDueDate] = today;
+      if (colTags > -1) childRow[colTags] = row[colTags];
+      if (colAssigneeIds > -1) childRow[colAssigneeIds] = row[colAssigneeIds];
+      if (colClientId > -1) childRow[colClientId] = row[colClientId];
+      if (colCompletedDate > -1) childRow[colCompletedDate] = '';
+      if (colRecurrence > -1) childRow[colRecurrence] = ''; // Hijas no recurrentes
+      if (colParentTaskId > -1) childRow[colParentTaskId] = row[colId];
+
+      newChildTasks.push(childRow);
     }
 
-  } catch (e) {
-    console.error('Error durante la ejecución de processRecurringTasks: ' + e.toString());
+    // Guardar todas las nuevas tareas hijas
+    if (newChildTasks.length > 0) {
+      tasksSheet.getRange(
+        tasksSheet.getLastRow() + 1,
+        1,
+        newChildTasks.length,
+        headers.length
+      ).setValues(newChildTasks);
+
+      console.log(`✅ ${newChildTasks.length} tareas hijas creadas para ${today}`);
+    } else {
+      console.log('ℹ️ No se crearon tareas nuevas hoy');
+    }
+
+  } catch (error) {
+    console.log(`❌ Error en proceso diario: ${error.toString()}`);
   } finally {
     lock.releaseLock();
   }
@@ -432,10 +489,10 @@ function createDailyTrigger() {
   ScriptApp.newTrigger('processRecurringTasks')
     .timeBased()
     .everyDays(1)
-    .atHour(1)
+    .atHour(6)
     .create();
 
-  console.log('Trigger diario para "processRecurringTasks" creado/actualizado.');
+  console.log('✅ Trigger diario creado: SE EJECUTARÁ UNA VEZ AL DÍA (6AM).');
 }
 
 // ============== FUNCIÓN DE PRUEBA MANUAL ==============
