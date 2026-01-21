@@ -398,5 +398,127 @@ export const sheetsService = {
     } catch (error) {
       console.error(`❌ Error ${operation} usuario:`, error);
     }
+  },
+
+  // ===================== TARDES LIBRES =====================
+  async getFridayTimeOffs() {
+    try {
+      console.log('🔄 Cargando tardes libres de Sheets...');
+      const range = 'FridayTimeOff!A:I';
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}`;
+
+      if (!API_KEY || !SHEET_ID) {
+        console.error('❌ Faltan credenciales para tardes libres:', { API_KEY: !!API_KEY, SHEET_ID: !!SHEET_ID });
+        return [];
+      }
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data.error) {
+        console.error('❌ Error de Google Sheets API (tardes libres):', data.error);
+        return [];
+      }
+
+      if (!data.values || data.values.length <= 1) {
+        console.warn('⚠️ Hoja FridayTimeOff vacía o sin datos');
+        return [];
+      }
+
+      const [, ...rows] = data.values;
+      console.log(`✅ ${rows.length} tardes libres cargadas`);
+      return rows.map((row: string[]) => ({
+        id: row[0] || '',
+        userId: row[1] || '',
+        date: row[2] || '',
+        month: row[3] || '',
+        status: row[4] || 'pending',
+        createdAt: row[5] || '',
+        createdBy: row[6] || '',
+        approvedBy: row[7] || '',
+        approvedAt: row[8] || ''
+      }));
+    } catch (error) {
+      console.error('❌ Error loading friday time offs from Sheets:', error);
+      return [];
+    }
+  },
+
+  async saveFridayTimeOffIncremental(operation: 'create' | 'update' | 'delete', timeOff: any) {
+    if (!APPS_SCRIPT_URL) {
+      console.warn('APPS_SCRIPT_URL no configurada');
+      return;
+    }
+
+    try {
+      await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operation, type: 'fridayTimeOff', item: timeOff }),
+        mode: 'no-cors'
+      });
+      console.log(`✅ Tarde libre ${operation} en Sheets`);
+    } catch (error) {
+      console.error(`❌ Error ${operation} tarde libre:`, error);
+    }
+  },
+
+  // ===================== FERIADOS =====================
+  async getHolidays() {
+    try {
+      console.log('🔄 Cargando feriados de Sheets...');
+      const range = 'Holidays!A:E';
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}`;
+
+      if (!API_KEY || !SHEET_ID) {
+        console.error('❌ Faltan credenciales para feriados:', { API_KEY: !!API_KEY, SHEET_ID: !!SHEET_ID });
+        return [];
+      }
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data.error) {
+        console.error('❌ Error de Google Sheets API (feriados):', data.error);
+        return [];
+      }
+
+      if (!data.values || data.values.length <= 1) {
+        console.warn('⚠️ Hoja Holidays vacía o sin datos');
+        return [];
+      }
+
+      const [, ...rows] = data.values;
+      console.log(`✅ ${rows.length} feriados cargados`);
+      return rows.map((row: string[]) => ({
+        id: row[0] || '',
+        date: row[1] || '',
+        name: row[2] || '',
+        createdBy: row[3] || '',
+        createdAt: row[4] || ''
+      }));
+    } catch (error) {
+      console.error('❌ Error loading holidays from Sheets:', error);
+      return [];
+    }
+  },
+
+  async saveHolidayIncremental(operation: 'create' | 'update' | 'delete', holiday: any) {
+    if (!APPS_SCRIPT_URL) {
+      console.warn('APPS_SCRIPT_URL no configurada');
+      return;
+    }
+
+    try {
+      await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operation, type: 'holiday', item: holiday }),
+        mode: 'no-cors'
+      });
+      console.log(`✅ Feriado ${operation} en Sheets`);
+    } catch (error) {
+      console.error(`❌ Error ${operation} feriado:`, error);
+    }
   }
 };

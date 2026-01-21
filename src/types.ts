@@ -63,5 +63,28 @@ export enum ViewMode {
   CLIENT_MANAGEMENT = 'CLIENT_MANAGEMENT',
   CLIENT_PERFORMANCE = 'CLIENT_PERFORMANCE',
   USER_PERFORMANCE = 'USER_PERFORMANCE',
-  DASHBOARD = 'DASHBOARD'
+  DASHBOARD = 'DASHBOARD',
+  FRIDAY_TIME_OFF = 'FRIDAY_TIME_OFF'
+}
+
+// Tardes Libres - Cada registro representa una tarde libre de un usuario
+export interface FridayTimeOff {
+  id: string;
+  userId: string;
+  date: string; // Fecha del viernes (YYYY-MM-DD)
+  month: string; // Mes en formato YYYY-MM para facilitar filtros
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string;
+  createdBy: string; // ID del usuario que creó el registro
+  approvedBy?: string; // ID del admin que aprobó/rechazó
+  approvedAt?: string;
+}
+
+// Feriados - Viernes que no pueden ser seleccionados como tarde libre
+export interface Holiday {
+  id: string;
+  date: string; // Fecha del viernes feriado (YYYY-MM-DD)
+  name: string; // Nombre del feriado
+  createdBy: string; // ID del admin que lo creó
+  createdAt: string;
 }

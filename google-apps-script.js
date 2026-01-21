@@ -90,6 +90,10 @@ function handleIncrementalOperation_Fixed(sheet, data) {
     return handleClientOperation(sheet, operation, item);
   } else if (type === 'user') {
     return handleUserOperation(sheet, operation, item);
+  } else if (type === 'fridayTimeOff') {
+    return handleFridayTimeOffOperation(sheet, operation, item);
+  } else if (type === 'holiday') {
+    return handleHolidayOperation(sheet, operation, item);
   }
 
   return ContentService.createTextOutput(JSON.stringify({ success: false, error: 'Tipo no reconocido' })).setMimeType(ContentService.MimeType.JSON);
@@ -295,6 +299,142 @@ function handleUserOperation(sheet, operation, user) {
   }
 
   return ContentService.createTextOutput(JSON.stringify({ success: true, _version: 'DEBUG_VERIFIED', message: 'Row appended successfully' })).setMimeType(ContentService.MimeType.JSON);
+}
+
+// ============== TARDES LIBRES ==============
+function handleFridayTimeOffOperation(sheet, operation, timeOff) {
+  let fridaySheet = sheet.getSheetByName('FridayTimeOff');
+  if (!fridaySheet) {
+    fridaySheet = sheet.insertSheet('FridayTimeOff');
+    fridaySheet.appendRow(['id', 'userId', 'date', 'month', 'status', 'createdAt', 'createdBy', 'approvedBy', 'approvedAt']);
+  }
+
+  if (operation === 'create') {
+    // Verificar si ya existe
+    const data = fridaySheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === timeOff.id) {
+        // Ya existe, actualizar
+        fridaySheet.getRange(i + 1, 1, 1, 9).setValues([[
+          timeOff.id,
+          timeOff.userId || '',
+          timeOff.date || '',
+          timeOff.month || '',
+          timeOff.status || 'pending',
+          timeOff.createdAt || '',
+          timeOff.createdBy || '',
+          timeOff.approvedBy || '',
+          timeOff.approvedAt || ''
+        ]]);
+        return ContentService.createTextOutput(JSON.stringify({ success: true })).setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+
+    // No existe, crear
+    fridaySheet.appendRow([
+      timeOff.id || '',
+      timeOff.userId || '',
+      timeOff.date || '',
+      timeOff.month || '',
+      timeOff.status || 'pending',
+      timeOff.createdAt || '',
+      timeOff.createdBy || '',
+      timeOff.approvedBy || '',
+      timeOff.approvedAt || ''
+    ]);
+
+  } else if (operation === 'update') {
+    const data = fridaySheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === timeOff.id) {
+        fridaySheet.getRange(i + 1, 1, 1, 9).setValues([[
+          timeOff.id,
+          timeOff.userId || '',
+          timeOff.date || '',
+          timeOff.month || '',
+          timeOff.status || 'pending',
+          timeOff.createdAt || '',
+          timeOff.createdBy || '',
+          timeOff.approvedBy || '',
+          timeOff.approvedAt || ''
+        ]]);
+        break;
+      }
+    }
+
+  } else if (operation === 'delete') {
+    const data = fridaySheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === timeOff.id) {
+        fridaySheet.deleteRow(i + 1);
+        break;
+      }
+    }
+  }
+
+  return ContentService.createTextOutput(JSON.stringify({ success: true })).setMimeType(ContentService.MimeType.JSON);
+}
+
+// ============== FERIADOS ==============
+function handleHolidayOperation(sheet, operation, holiday) {
+  let holidaysSheet = sheet.getSheetByName('Holidays');
+  if (!holidaysSheet) {
+    holidaysSheet = sheet.insertSheet('Holidays');
+    holidaysSheet.appendRow(['id', 'date', 'name', 'createdBy', 'createdAt']);
+  }
+
+  if (operation === 'create') {
+    // Verificar si ya existe
+    const data = holidaysSheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === holiday.id) {
+        // Ya existe, actualizar
+        holidaysSheet.getRange(i + 1, 1, 1, 5).setValues([[
+          holiday.id,
+          holiday.date || '',
+          holiday.name || '',
+          holiday.createdBy || '',
+          holiday.createdAt || ''
+        ]]);
+        return ContentService.createTextOutput(JSON.stringify({ success: true })).setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+
+    // No existe, crear
+    holidaysSheet.appendRow([
+      holiday.id || '',
+      holiday.date || '',
+      holiday.name || '',
+      holiday.createdBy || '',
+      holiday.createdAt || ''
+    ]);
+
+  } else if (operation === 'update') {
+    const data = holidaysSheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === holiday.id) {
+        holidaysSheet.getRange(i + 1, 1, 1, 5).setValues([[
+          holiday.id,
+          holiday.date || '',
+          holiday.name || '',
+          holiday.createdBy || '',
+          holiday.createdAt || ''
+        ]]);
+        break;
+      }
+    }
+
+  } else if (operation === 'delete') {
+    const data = holidaysSheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === holiday.id) {
+        holidaysSheet.deleteRow(i + 1);
+        break;
+      }
+    }
+  }
+
+  return ContentService.createTextOutput(JSON.stringify({ success: true })).setMimeType(ContentService.MimeType.JSON);
 }
 
 // ============== GENERACIÓN DE TAREAS RECURRENTES (BACKEND) ==============

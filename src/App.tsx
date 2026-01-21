@@ -10,7 +10,8 @@ import { ClientPerformance } from './components/ClientPerformance';
 import { UserPerformance } from './components/UserPerformance';
 import { Dashboard } from './components/Dashboard';
 import { NotificationContainer } from './components/NotificationContainer';
-import { User, Task, Status, ViewMode, Priority, Client, DayOfWeek } from './types';
+import { FridayTimeOff } from './components/FridayTimeOff';
+import { User, Task, Status, ViewMode, Priority, Client, DayOfWeek, FridayTimeOff as FridayTimeOffType, Holiday } from './types';
 import { MOCK_USERS, MOCK_CLIENTS, STATUS_LABELS, STATUS_COLORS } from './constants';
 import { generateDailyReport } from './services/geminiService';
 import { sheetsService } from './services/sheetsService';
@@ -28,7 +29,7 @@ import {
   Menu,
   X,
   Edit,
-  Trash2, AlertCircle, Check, Search, Filter, Calendar, ArrowLeft, BarChart3, Database, History, Layout, Settings, Briefcase, Save, Building2, Award, ChevronDown, ChevronUp
+  Trash2, AlertCircle, Check, Search, Filter, Calendar, ArrowLeft, BarChart3, Database, History, Layout, Settings, Briefcase, Save, Building2, Award, ChevronDown, ChevronUp, Sun
 } from 'lucide-react';
 import { getLocalDateString } from './utils/dateUtils';
 
@@ -102,10 +103,40 @@ const App: React.FC = () => {
     }
   });
 
+  const fridayTimeOffsOptimistic = useOptimisticData<FridayTimeOffType>([], {
+    syncFn: async (operation, timeOff) => {
+      await sheetsService.saveFridayTimeOffIncremental(operation, timeOff);
+    },
+    onSyncSuccess: (op) => {
+      console.log(`✅ Tarde libre ${op.operation} sincronizada`);
+      lastWriteTime.current = Date.now();
+    },
+    onSyncError: (error, op) => {
+      console.error(`❌ Error sincronizando tarde libre ${op.operation}:`, error);
+      addNotification(`Error al sincronizar tarde libre: ${error.message}`, 'error');
+    }
+  });
+
+  const holidaysOptimistic = useOptimisticData<Holiday>([], {
+    syncFn: async (operation, holiday) => {
+      await sheetsService.saveHolidayIncremental(operation, holiday);
+    },
+    onSyncSuccess: (op) => {
+      console.log(`✅ Feriado ${op.operation} sincronizado`);
+      lastWriteTime.current = Date.now();
+    },
+    onSyncError: (error, op) => {
+      console.error(`❌ Error sincronizando feriado ${op.operation}:`, error);
+      addNotification(`Error al sincronizar feriado: ${error.message}`, 'error');
+    }
+  });
+
   // Aliases para facilitar migración
   const tasks = tasksOptimistic.data;
   const users = usersOptimistic.data;
   const clients = clientsOptimistic.data;
+  const fridayTimeOffs = fridayTimeOffsOptimistic.data;
+  const holidays = holidaysOptimistic.data;
   const setTasks = tasksOptimistic.setAll; // Alias para compatibilidad con código legacy
 
   // Filtros
@@ -208,10 +239,12 @@ const App: React.FC = () => {
 
   const loadData = async () => {
     try {
-      const [loadedTasks, loadedUsers, loadedClients] = await Promise.all([
+      const [loadedTasks, loadedUsers, loadedClients, loadedFridayTimeOffs, loadedHolidays] = await Promise.all([
         sheetsService.getTasks(),
         sheetsService.getUsers(),
-        sheetsService.getClients()
+        sheetsService.getClients(),
+        sheetsService.getFridayTimeOffs(),
+        sheetsService.getHolidays()
       ]);
 
       if (loadedUsers.length > 0) {
@@ -220,6 +253,14 @@ const App: React.FC = () => {
 
       if (loadedClients.length > 0) {
         clientsOptimistic.setAll(loadedClients);
+      }
+
+      if (loadedFridayTimeOffs.length > 0) {
+        fridayTimeOffsOptimistic.setAll(loadedFridayTimeOffs);
+      }
+
+      if (loadedHolidays.length > 0) {
+        holidaysOptimistic.setAll(loadedHolidays);
       }
 
       if (loadedTasks.length > 0) {
@@ -345,6 +386,42 @@ const App: React.FC = () => {
 
     // 2️⃣ Notificación instantánea
     addNotification('Cliente eliminado correctamente', 'success');
+  };
+
+  // ===================== TARDES LIBRES =====================
+  const handleCreateFridayTimeOff = async (timeOff: FridayTimeOffType) => {
+    lastWriteTime.current = Date.now();
+    fridayTimeOffsOptimistic.create(timeOff);
+    addNotification('Tarde libre registrada correctamente', 'success');
+  };
+
+  const handleUpdateFridayTimeOff = async (timeOff: FridayTimeOffType) => {
+    lastWriteTime.current = Date.now();
+    fridayTimeOffsOptimistic.update(timeOff);
+    addNotification('Tarde libre actualizada correctamente', 'success');
+  };
+
+  const handleDeleteFridayTimeOff = async (timeOffId: string) => {
+    const timeOffToDelete = fridayTimeOffs.find(to => to.id === timeOffId);
+    if (!timeOffToDelete) return;
+    lastWriteTime.current = Date.now();
+    fridayTimeOffsOptimistic.remove(timeOffToDelete);
+    addNotification('Tarde libre eliminada correctamente', 'success');
+  };
+
+  // ===================== FERIADOS =====================
+  const handleCreateHoliday = async (holiday: Holiday) => {
+    lastWriteTime.current = Date.now();
+    holidaysOptimistic.create(holiday);
+    addNotification('Feriado creado correctamente', 'success');
+  };
+
+  const handleDeleteHoliday = async (holidayId: string) => {
+    const holidayToDelete = holidays.find(h => h.id === holidayId);
+    if (!holidayToDelete) return;
+    lastWriteTime.current = Date.now();
+    holidaysOptimistic.remove(holidayToDelete);
+    addNotification('Feriado eliminado correctamente', 'success');
   };
 
   const handleDragStart = (e: React.DragEvent, id: string) => {
@@ -1000,6 +1077,14 @@ const App: React.FC = () => {
               <Award size={18} />
               Rendimiento Usuarios
             </button>
+
+            <button
+              onClick={() => { setViewMode(ViewMode.FRIDAY_TIME_OFF); setIsMobileMenuOpen(false); }}
+              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${viewMode === ViewMode.FRIDAY_TIME_OFF ? 'bg-ram-cream text-ram-navy font-bold' : 'text-ram-grey hover:bg-gray-50'}`}
+            >
+              <Sun size={18} />
+              Tardes Libres
+            </button>
           </div>
 
           {/* Submenú Administración */}
@@ -1106,6 +1191,7 @@ const App: React.FC = () => {
                   {viewMode === ViewMode.CLIENT_MANAGEMENT && 'Clientes'}
                   {viewMode === ViewMode.CLIENT_PERFORMANCE && 'Rendimiento Clientes'}
                   {viewMode === ViewMode.USER_PERFORMANCE && 'Rendimiento Usuarios'}
+                  {viewMode === ViewMode.FRIDAY_TIME_OFF && 'Tardes Libres'}
                 </h1>
                 <span className="text-gray-400 font-medium text-sm md:text-base">
                   Hola {currentUser?.name.split(' ')[0]} 👋
@@ -1405,6 +1491,20 @@ const App: React.FC = () => {
               tasks={performanceTasks}
               users={users}
               currentUser={currentUser!}
+            />
+          )}
+
+          {viewMode === ViewMode.FRIDAY_TIME_OFF && (
+            <FridayTimeOff
+              users={users}
+              currentUser={currentUser!}
+              fridayTimeOffs={fridayTimeOffs}
+              holidays={holidays}
+              onCreateTimeOff={handleCreateFridayTimeOff}
+              onUpdateTimeOff={handleUpdateFridayTimeOff}
+              onDeleteTimeOff={handleDeleteFridayTimeOff}
+              onCreateHoliday={handleCreateHoliday}
+              onDeleteHoliday={handleDeleteHoliday}
             />
           )}
 
