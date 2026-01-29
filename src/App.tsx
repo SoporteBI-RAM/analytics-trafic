@@ -29,7 +29,7 @@ import {
   Menu,
   X,
   Edit,
-  Trash2, AlertCircle, Check, Search, Filter, Calendar, ArrowLeft, BarChart3, Database, History, Layout, Settings, Briefcase, Save, Building2, Award, ChevronDown, ChevronUp, Sun
+  Trash2, AlertCircle, Check, Search, Filter, Calendar, ArrowLeft, BarChart3, Database, History, Layout, Settings, Briefcase, Save, Building2, Award, ChevronDown, ChevronUp, Sun, RefreshCw
 } from 'lucide-react';
 import { getLocalDateString } from './utils/dateUtils';
 
@@ -54,7 +54,8 @@ const App: React.FC = () => {
   // Ref para controlar el cooldown de sincronización
   // Evita que la sync sobrescriba cambios locales recientes
   const lastWriteTime = React.useRef<number>(0);
-  const COOLDOWN_MS = 15000; // 15 segundos de espera tras escribir
+  const pollCount = React.useRef<number>(0); // Contador para polling escalonado
+  const COOLDOWN_MS = 5000; // REDUCIDO: 5 segundos de espera tras escribir (antes 15s)
 
   // Hook de notificaciones para feedback instantáneo
   const { notifications, addNotification, removeNotification } = useNotifications();
@@ -139,6 +140,20 @@ const App: React.FC = () => {
   const holidays = holidaysOptimistic.data;
   const setTasks = tasksOptimistic.setAll; // Alias para compatibilidad con código legacy
 
+  // Refs para estado actual (evita stale closures en setInterval)
+  const tasksRef = React.useRef(tasks);
+  const usersRef = React.useRef(users);
+  const clientsRef = React.useRef(clients);
+  const fridayTimeOffsRef = React.useRef(fridayTimeOffs);
+  const holidaysRef = React.useRef(holidays);
+
+  // Actualizar refs cuando cambia el estado
+  useEffect(() => { tasksRef.current = tasks; }, [tasks]);
+  useEffect(() => { usersRef.current = users; }, [users]);
+  useEffect(() => { clientsRef.current = clients; }, [clients]);
+  useEffect(() => { fridayTimeOffsRef.current = fridayTimeOffs; }, [fridayTimeOffs]);
+  useEffect(() => { holidaysRef.current = holidays; }, [holidays]);
+
   // Filtros
   const [selectedStatuses, setSelectedStatuses] = useState<Status[]>([]);
   const [selectedPriorities, setSelectedPriorities] = useState<Priority[]>([]);
@@ -182,7 +197,7 @@ const App: React.FC = () => {
   useEffect(() => {
     loadData();
 
-    // Polling cada 10 segundos para sincronizar cambios de otros usuarios
+    // Polling cada 10s (más seguro para quotas)
     const interval = setInterval(() => {
       syncDataFromSheets();
     }, 10000);
@@ -192,24 +207,65 @@ const App: React.FC = () => {
     };
   }, []);
 
-  const syncDataFromSheets = async () => {
+  const syncDataFromSheets = async (forceAll: boolean = false) => {
     // Chequeo de seguridad: Cooldown
-    if (Date.now() - lastWriteTime.current < COOLDOWN_MS) {
-      console.log('⏳ Saltando sync por actividad local reciente (Cooldown activo)');
+    // Solo bloquea si hay cambios PENDIENTES de sincronizar o muy recientes
+    const isCooldownActive = Date.now() - lastWriteTime.current < COOLDOWN_MS;
+    const hasPendingOps = tasksOptimistic.pendingOperations > 0 ||
+      usersOptimistic.pendingOperations > 0 ||
+      clientsOptimistic.pendingOperations > 0 ||
+      fridayTimeOffsOptimistic.pendingOperations > 0 ||
+      holidaysOptimistic.pendingOperations > 0;
+
+    if (hasPendingOps) {
+      // console.log('⏳ Saltando sync por operaciones pendientes');
+      if (forceAll) addNotification('Sincronización pausada: hay cambios guardándose...', 'warning');
       return;
     }
 
-    try {
-      const [loadedTasks, loadedUsers, loadedClients] = await Promise.all([
-        sheetsService.getTasks(),
-        sheetsService.getUsers(),
-        sheetsService.getClients()
-      ]);
+    if (isCooldownActive && !forceAll) {
+      // console.log('⏳ Saltando sync por actividad local reciente');
+      return;
+    }
 
-      // Solo actualizar si hay datos nuevos (reemplazar todo el estado con datos del servidor)
-      if (loadedTasks.length > 0) {
-        const hasChanges = JSON.stringify(tasks) !== JSON.stringify(loadedTasks);
-        if (hasChanges) {
+    // Incrementar contador para polling escalonado
+    pollCount.current += 1;
+    const shouldSyncStaticData = forceAll || pollCount.current % 6 === 0; // Cada 60s (6 * 10s) o forzado
+
+    if (forceAll) {
+      addNotification('Actualizando datos...', 'info');
+    }
+
+    try {
+      // 1. Siempre sincronizar TAREAS (alta frecuencia)
+      const loadedTasks = await sheetsService.getTasks();
+
+      // 2. Sincronizar datos ESTATICOS (baja frecuencia)
+      let loadedUsers: User[] | null = null;
+      let loadedClients: Client[] | null = null;
+      let loadedFridayTimeOffs: FridayTimeOffType[] | null = null;
+      let loadedHolidays: Holiday[] | null = null;
+
+      if (shouldSyncStaticData) {
+        console.log('🔄 Sync: Ejecutando sync completa (static data)...');
+        [loadedUsers, loadedClients, loadedFridayTimeOffs, loadedHolidays] = await Promise.all([
+          sheetsService.getUsers(),
+          sheetsService.getClients(),
+          sheetsService.getFridayTimeOffs(),
+          sheetsService.getHolidays()
+        ]);
+      }
+
+      // Solo actualizar si hay datos nuevos y diferentes al estado ACTUAL (usando refs)
+
+      // 1. Tasks
+      if (loadedTasks && loadedTasks.length > 0) {
+        // Usar tasksRef.current para comparar con el estado actual VERDADERO
+        const currentTasksJSON = JSON.stringify(tasksRef.current);
+        const loadedTasksJSON = JSON.stringify(loadedTasks);
+
+        if (currentTasksJSON !== loadedTasksJSON) {
+          console.log('🔄 Sync: Detectados cambios en Tareas servidas');
           const normalizedTasks = loadedTasks.map(t => ({
             ...t,
             assigneeIds: t.assigneeIds || (t.assigneeId ? [t.assigneeId] : []),
@@ -219,19 +275,38 @@ const App: React.FC = () => {
         }
       }
 
-      if (loadedUsers.length > 0) {
-        const hasChanges = JSON.stringify(users) !== JSON.stringify(loadedUsers);
-        if (hasChanges) {
+      // 2. Users (solo si se cargaron)
+      if (loadedUsers && loadedUsers.length > 0) {
+        if (JSON.stringify(usersRef.current) !== JSON.stringify(loadedUsers)) {
+          console.log('🔄 Sync: Detectados cambios en Usuarios');
           usersOptimistic.setAll(loadedUsers);
         }
       }
 
-      if (loadedClients.length > 0) {
-        const hasChanges = JSON.stringify(clients) !== JSON.stringify(loadedClients);
-        if (hasChanges) {
+      // 3. Clients (solo si se cargaron)
+      if (loadedClients && loadedClients.length > 0) {
+        if (JSON.stringify(clientsRef.current) !== JSON.stringify(loadedClients)) {
+          console.log('🔄 Sync: Detectados cambios en Clientes');
           clientsOptimistic.setAll(loadedClients);
         }
       }
+
+      // 4. Friday Time Offs (solo si se cargaron)
+      if (loadedFridayTimeOffs && loadedFridayTimeOffs.length > 0) {
+        if (JSON.stringify(fridayTimeOffsRef.current) !== JSON.stringify(loadedFridayTimeOffs)) {
+          console.log('🔄 Sync: Detectados cambios en Tardes Libres');
+          fridayTimeOffsOptimistic.setAll(loadedFridayTimeOffs);
+        }
+      }
+
+      // 5. Holidays (solo si se cargaron)
+      if (loadedHolidays && loadedHolidays.length > 0) {
+        if (JSON.stringify(holidaysRef.current) !== JSON.stringify(loadedHolidays)) {
+          console.log('🔄 Sync: Detectados cambios en Feriados');
+          holidaysOptimistic.setAll(loadedHolidays);
+        }
+      }
+
     } catch (error) {
       console.error('Error syncing data:', error);
     }
@@ -1193,9 +1268,18 @@ const App: React.FC = () => {
                   {viewMode === ViewMode.USER_PERFORMANCE && 'Rendimiento Usuarios'}
                   {viewMode === ViewMode.FRIDAY_TIME_OFF && 'Tardes Libres'}
                 </h1>
-                <span className="text-gray-400 font-medium text-sm md:text-base">
-                  Hola {currentUser?.name.split(' ')[0]} 👋
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-400 font-medium text-sm md:text-base">
+                    Hola {currentUser?.name.split(' ')[0]} 👋
+                  </span>
+                  <button
+                    onClick={() => syncDataFromSheets(true)}
+                    className="p-1.5 bg-green-50 text-green-600 rounded-full hover:bg-green-100 transition-colors"
+                    title="Actualizar datos"
+                  >
+                    <RefreshCw size={18} />
+                  </button>
+                </div>
               </div>
               <p className="hidden md:block text-sm text-gray-500 mt-1">
                 Mostrando {displayTasks.length} de {displayContextTasks.length} tareas
