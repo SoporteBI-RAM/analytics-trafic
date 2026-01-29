@@ -94,6 +94,8 @@ function handleIncrementalOperation_Fixed(sheet, data) {
     return handleFridayTimeOffOperation(sheet, operation, item);
   } else if (type === 'holiday') {
     return handleHolidayOperation(sheet, operation, item);
+  } else if (type === 'vacation') {
+    return handleVacationOperation(sheet, operation, item);
   }
 
   return ContentService.createTextOutput(JSON.stringify({ success: false, error: 'Tipo no reconocido' })).setMimeType(ContentService.MimeType.JSON);
@@ -429,6 +431,61 @@ function handleHolidayOperation(sheet, operation, holiday) {
     for (let i = 1; i < data.length; i++) {
       if (data[i][0] === holiday.id) {
         holidaysSheet.deleteRow(i + 1);
+        break;
+      }
+    }
+  }
+
+  return ContentService.createTextOutput(JSON.stringify({ success: true })).setMimeType(ContentService.MimeType.JSON);
+}
+
+// ============== VACACIONES ==============
+function handleVacationOperation(sheet, operation, vacation) {
+  let vacationsSheet = sheet.getSheetByName('Vacations');
+  if (!vacationsSheet) {
+    vacationsSheet = sheet.insertSheet('Vacations');
+    // Columnas: id, userId, startDate, endDate, daysCount, status, createdAt, createdBy, approvedBy, approvedAt
+    vacationsSheet.appendRow(['id', 'userId', 'startDate', 'endDate', 'daysCount', 'status', 'createdAt', 'createdBy', 'approvedBy', 'approvedAt']);
+  }
+
+  const values = [
+    vacation.id || '',
+    vacation.userId || '',
+    vacation.startDate || '',
+    vacation.endDate || '',
+    vacation.daysCount || 0,
+    vacation.status || 'pending',
+    vacation.createdAt || '',
+    vacation.createdBy || '',
+    vacation.approvedBy || '',
+    vacation.approvedAt || ''
+  ];
+
+  if (operation === 'create') {
+    // Verificar si ya existe por ID para evitar duplicados en re-intentos
+    const data = vacationsSheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === vacation.id) {
+        vacationsSheet.getRange(i + 1, 1, 1, 10).setValues([values]);
+        return ContentService.createTextOutput(JSON.stringify({ success: true, message: 'Updated existing' })).setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+    vacationsSheet.appendRow(values);
+
+  } else if (operation === 'update') {
+    const data = vacationsSheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === vacation.id) {
+        vacationsSheet.getRange(i + 1, 1, 1, 10).setValues([values]);
+        break;
+      }
+    }
+
+  } else if (operation === 'delete') {
+    const data = vacationsSheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === vacation.id) {
+        vacationsSheet.deleteRow(i + 1);
         break;
       }
     }

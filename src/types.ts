@@ -64,7 +64,22 @@ export enum ViewMode {
   CLIENT_PERFORMANCE = 'CLIENT_PERFORMANCE',
   USER_PERFORMANCE = 'USER_PERFORMANCE',
   DASHBOARD = 'DASHBOARD',
-  FRIDAY_TIME_OFF = 'FRIDAY_TIME_OFF'
+  FRIDAY_TIME_OFF = 'FRIDAY_TIME_OFF',
+  VACATIONS = 'VACATIONS'
+}
+
+// Vacaciones
+export interface Vacation {
+  id: string;
+  userId: string;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  daysCount: number; // Días hábiles calculados
+  status: 'pending' | 'approved' | 'rejected' | 'taken';
+  createdAt: string;
+  createdBy: string;
+  approvedBy?: string;
+  approvedAt?: string;
 }
 
 // Tardes Libres - Cada registro representa una tarde libre de un usuario

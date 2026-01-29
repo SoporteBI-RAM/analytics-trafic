@@ -520,5 +520,69 @@ export const sheetsService = {
     } catch (error) {
       console.error(`❌ Error ${operation} feriado:`, error);
     }
+  },
+
+  // ===================== VACACIONES =====================
+  async getVacations() {
+    try {
+      console.log('🔄 Cargando vacaciones de Sheets...');
+      const range = 'Vacations!A:J';
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}`;
+
+      if (!API_KEY || !SHEET_ID) {
+        console.error('❌ Faltan credenciales para vacaciones:', { API_KEY: !!API_KEY, SHEET_ID: !!SHEET_ID });
+        return [];
+      }
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data.error) {
+        console.error('❌ Error de Google Sheets API (vacaciones):', data.error);
+        return [];
+      }
+
+      if (!data.values || data.values.length <= 1) {
+        console.warn('⚠️ Hoja Vacations vacía o sin datos');
+        return [];
+      }
+
+      const [, ...rows] = data.values;
+      console.log(`✅ ${rows.length} vacaciones cargadas`);
+      return rows.map((row: string[]) => ({
+        id: row[0] || '',
+        userId: row[1] || '',
+        startDate: row[2] || '',
+        endDate: row[3] || '',
+        daysCount: parseInt(row[4]) || 0,
+        status: row[5] || 'pending',
+        createdAt: row[6] || '',
+        createdBy: row[7] || '',
+        approvedBy: row[8] || '',
+        approvedAt: row[9] || ''
+      }));
+    } catch (error) {
+      console.error('❌ Error loading vacations from Sheets:', error);
+      return [];
+    }
+  },
+
+  async saveVacationIncremental(operation: 'create' | 'update' | 'delete', vacation: any) {
+    if (!APPS_SCRIPT_URL) {
+      console.warn('APPS_SCRIPT_URL no configurada');
+      return;
+    }
+
+    try {
+      await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operation, type: 'vacation', item: vacation }),
+        mode: 'no-cors'
+      });
+      console.log(`✅ Vacación ${operation} en Sheets`);
+    } catch (error) {
+      console.error(`❌ Error ${operation} vacación:`, error);
+    }
   }
 };

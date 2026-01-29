@@ -11,7 +11,8 @@ import { UserPerformance } from './components/UserPerformance';
 import { Dashboard } from './components/Dashboard';
 import { NotificationContainer } from './components/NotificationContainer';
 import { FridayTimeOff } from './components/FridayTimeOff';
-import { User, Task, Status, ViewMode, Priority, Client, DayOfWeek, FridayTimeOff as FridayTimeOffType, Holiday } from './types';
+import { VacationPlanner } from './components/VacationPlanner';
+import { User, Task, Status, ViewMode, Priority, Client, DayOfWeek, FridayTimeOff as FridayTimeOffType, Holiday, Vacation } from './types';
 import { MOCK_USERS, MOCK_CLIENTS, STATUS_LABELS, STATUS_COLORS } from './constants';
 import { generateDailyReport } from './services/geminiService';
 import { sheetsService } from './services/sheetsService';
@@ -29,7 +30,7 @@ import {
   Menu,
   X,
   Edit,
-  Trash2, AlertCircle, Check, Search, Filter, Calendar, ArrowLeft, BarChart3, Database, History, Layout, Settings, Briefcase, Save, Building2, Award, ChevronDown, ChevronUp, Sun, RefreshCw
+  Trash2, AlertCircle, Check, Search, Filter, Calendar, ArrowLeft, BarChart3, Database, History, Layout, Settings, Briefcase, Save, Building2, Award, ChevronDown, ChevronUp, Sun, RefreshCw, Palmtree
 } from 'lucide-react';
 import { getLocalDateString } from './utils/dateUtils';
 
@@ -132,12 +133,27 @@ const App: React.FC = () => {
     }
   });
 
+  const vacationsOptimistic = useOptimisticData<Vacation>([], {
+    syncFn: async (operation, vacation) => {
+      await sheetsService.saveVacationIncremental(operation, vacation);
+    },
+    onSyncSuccess: (op) => {
+      console.log(`✅ Vacación ${op.operation} sincronizada`);
+      lastWriteTime.current = Date.now();
+    },
+    onSyncError: (error, op) => {
+      console.error(`❌ Error sincronizando vacación ${op.operation}:`, error);
+      addNotification(`Error al sincronizar vacación: ${error.message}`, 'error');
+    }
+  });
+
   // Aliases para facilitar migración
   const tasks = tasksOptimistic.data;
   const users = usersOptimistic.data;
   const clients = clientsOptimistic.data;
   const fridayTimeOffs = fridayTimeOffsOptimistic.data;
   const holidays = holidaysOptimistic.data;
+  const vacations = vacationsOptimistic.data;
   const setTasks = tasksOptimistic.setAll; // Alias para compatibilidad con código legacy
 
   // Refs para estado actual (evita stale closures en setInterval)
@@ -146,6 +162,7 @@ const App: React.FC = () => {
   const clientsRef = React.useRef(clients);
   const fridayTimeOffsRef = React.useRef(fridayTimeOffs);
   const holidaysRef = React.useRef(holidays);
+  const vacationsRef = React.useRef(vacations);
 
   // Actualizar refs cuando cambia el estado
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
@@ -153,6 +170,7 @@ const App: React.FC = () => {
   useEffect(() => { clientsRef.current = clients; }, [clients]);
   useEffect(() => { fridayTimeOffsRef.current = fridayTimeOffs; }, [fridayTimeOffs]);
   useEffect(() => { holidaysRef.current = holidays; }, [holidays]);
+  useEffect(() => { vacationsRef.current = vacations; }, [vacations]);
 
   // Filtros
   const [selectedStatuses, setSelectedStatuses] = useState<Status[]>([]);
@@ -215,7 +233,8 @@ const App: React.FC = () => {
       usersOptimistic.pendingOperations > 0 ||
       clientsOptimistic.pendingOperations > 0 ||
       fridayTimeOffsOptimistic.pendingOperations > 0 ||
-      holidaysOptimistic.pendingOperations > 0;
+      holidaysOptimistic.pendingOperations > 0 ||
+      vacationsOptimistic.pendingOperations > 0;
 
     if (hasPendingOps) {
       // console.log('⏳ Saltando sync por operaciones pendientes');
@@ -245,14 +264,16 @@ const App: React.FC = () => {
       let loadedClients: Client[] | null = null;
       let loadedFridayTimeOffs: FridayTimeOffType[] | null = null;
       let loadedHolidays: Holiday[] | null = null;
+      let loadedVacations: Vacation[] | null = null;
 
       if (shouldSyncStaticData) {
         console.log('🔄 Sync: Ejecutando sync completa (static data)...');
-        [loadedUsers, loadedClients, loadedFridayTimeOffs, loadedHolidays] = await Promise.all([
+        [loadedUsers, loadedClients, loadedFridayTimeOffs, loadedHolidays, loadedVacations] = await Promise.all([
           sheetsService.getUsers(),
           sheetsService.getClients(),
           sheetsService.getFridayTimeOffs(),
-          sheetsService.getHolidays()
+          sheetsService.getHolidays(),
+          sheetsService.getVacations()
         ]);
       }
 
@@ -307,6 +328,14 @@ const App: React.FC = () => {
         }
       }
 
+      // 6. Vacations (solo si se cargaron)
+      if (loadedVacations) {
+        if (JSON.stringify(vacationsRef.current) !== JSON.stringify(loadedVacations)) {
+          console.log('🔄 Sync: Detectados cambios en Vacaciones');
+          vacationsOptimistic.setAll(loadedVacations);
+        }
+      }
+
     } catch (error) {
       console.error('Error syncing data:', error);
     }
@@ -314,12 +343,13 @@ const App: React.FC = () => {
 
   const loadData = async () => {
     try {
-      const [loadedTasks, loadedUsers, loadedClients, loadedFridayTimeOffs, loadedHolidays] = await Promise.all([
+      const [loadedTasks, loadedUsers, loadedClients, loadedFridayTimeOffs, loadedHolidays, loadedVacations] = await Promise.all([
         sheetsService.getTasks(),
         sheetsService.getUsers(),
         sheetsService.getClients(),
         sheetsService.getFridayTimeOffs(),
-        sheetsService.getHolidays()
+        sheetsService.getHolidays(),
+        sheetsService.getVacations()
       ]);
 
       if (loadedUsers.length > 0) {
@@ -336,6 +366,10 @@ const App: React.FC = () => {
 
       if (loadedHolidays.length > 0) {
         holidaysOptimistic.setAll(loadedHolidays);
+      }
+
+      if (loadedVacations) {
+        vacationsOptimistic.setAll(loadedVacations);
       }
 
       if (loadedTasks.length > 0) {
@@ -497,6 +531,27 @@ const App: React.FC = () => {
     lastWriteTime.current = Date.now();
     holidaysOptimistic.remove(holidayToDelete);
     addNotification('Feriado eliminado correctamente', 'success');
+  };
+
+  // ===================== VACACIONES =====================
+  const handleCreateVacation = async (vacation: Vacation) => {
+    lastWriteTime.current = Date.now();
+    vacationsOptimistic.create(vacation);
+    addNotification('Vacaciones registradas correctamente', 'success');
+  };
+
+  const handleDeleteVacation = async (vacationId: string) => {
+    const vacationToDelete = vacations.find(v => v.id === vacationId);
+    if (!vacationToDelete) return;
+    lastWriteTime.current = Date.now();
+    vacationsOptimistic.remove(vacationToDelete);
+    addNotification('Vacaciones eliminadas correctamente', 'success');
+  };
+
+  const handleUpdateVacation = async (vacation: Vacation) => {
+    lastWriteTime.current = Date.now();
+    vacationsOptimistic.update(vacation);
+    addNotification('Vacaciones actualizadas correctamente', 'success');
   };
 
   const handleDragStart = (e: React.DragEvent, id: string) => {
@@ -1158,7 +1213,15 @@ const App: React.FC = () => {
               className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${viewMode === ViewMode.FRIDAY_TIME_OFF ? 'bg-ram-cream text-ram-navy font-bold' : 'text-ram-grey hover:bg-gray-50'}`}
             >
               <Sun size={18} />
-              Tardes Libres
+              Tardes Libres de Viernes
+            </button>
+
+            <button
+              onClick={() => { setViewMode(ViewMode.VACATIONS); setIsMobileMenuOpen(false); }}
+              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${viewMode === ViewMode.VACATIONS ? 'bg-ram-cream text-ram-navy font-bold' : 'text-ram-grey hover:bg-gray-50'}`}
+            >
+              <Palmtree size={18} />
+              Planificador de Vacaciones
             </button>
           </div>
 
@@ -1267,6 +1330,7 @@ const App: React.FC = () => {
                   {viewMode === ViewMode.CLIENT_PERFORMANCE && 'Rendimiento Clientes'}
                   {viewMode === ViewMode.USER_PERFORMANCE && 'Rendimiento Usuarios'}
                   {viewMode === ViewMode.FRIDAY_TIME_OFF && 'Tardes Libres'}
+                  {viewMode === ViewMode.VACATIONS && 'Planificador de Vacaciones'}
                 </h1>
                 <div className="flex items-center gap-2">
                   <span className="text-gray-400 font-medium text-sm md:text-base">
@@ -1589,6 +1653,18 @@ const App: React.FC = () => {
               onDeleteTimeOff={handleDeleteFridayTimeOff}
               onCreateHoliday={handleCreateHoliday}
               onDeleteHoliday={handleDeleteHoliday}
+            />
+          )}
+
+          {viewMode === ViewMode.VACATIONS && (
+            <VacationPlanner
+              users={users}
+              currentUser={currentUser!}
+              vacations={vacations}
+              holidays={holidays}
+              onCreateVacation={handleCreateVacation}
+              onDeleteVacation={handleDeleteVacation}
+              onUpdateVacation={handleUpdateVacation}
             />
           )}
 
