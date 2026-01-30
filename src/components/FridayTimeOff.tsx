@@ -300,16 +300,14 @@ export const FridayTimeOff: React.FC<FridayTimeOffProps> = ({
           </div>
 
           <div className="flex items-center gap-4">
-            {isAdmin && (
-              <button
-                onClick={handleGenerateEmailSummary}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors shadow-sm mr-2"
-                title="Enviar resumen por correo"
-              >
-                <Mail size={18} />
-                <span className="hidden md:inline">Enviar Resumen</span>
-              </button>
-            )}
+            <button
+              onClick={handleGenerateEmailSummary}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors shadow-sm mr-2"
+              title="Enviar resumen por correo"
+            >
+              <Mail size={18} />
+              <span className="hidden md:inline">Enviar Resumen</span>
+            </button>
 
             <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-1 border border-gray-100">
               <button

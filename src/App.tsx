@@ -156,12 +156,14 @@ const App: React.FC = () => {
   }, [tasks, isAdmin, activeUserIds]);
 
   const visibleVacations = useMemo(() => {
+    if (isAdmin) return vacations;
     return vacations.filter(v => activeUserIds.has(v.userId));
-  }, [vacations, activeUserIds]);
+  }, [vacations, isAdmin, activeUserIds]);
 
   const visibleFridayTimeOffs = useMemo(() => {
+    if (isAdmin) return fridayTimeOffs;
     return fridayTimeOffs.filter(to => activeUserIds.has(to.userId));
-  }, [fridayTimeOffs, activeUserIds]);
+  }, [fridayTimeOffs, isAdmin, activeUserIds]);
 
   // Handlers
   const handleLogin = (user: User) => {
@@ -251,63 +253,43 @@ const App: React.FC = () => {
         ]);
       }
 
-      // Solo actualizar si hay datos nuevos y diferentes al estado ACTUAL (usando refs)
+      const currentTasksJSON = JSON.stringify(tasksRef.current);
+      const loadedTasksJSON = JSON.stringify(loadedTasks);
 
-      // 1. Tasks
-      if (loadedTasks && loadedTasks.length > 0) {
-        // Usar tasksRef.current para comparar con el estado actual VERDADERO
-        const currentTasksJSON = JSON.stringify(tasksRef.current);
-        const loadedTasksJSON = JSON.stringify(loadedTasks);
-
-        if (currentTasksJSON !== loadedTasksJSON) {
-          console.log('🔄 Sync: Detectados cambios en Tareas servidas');
-          const normalizedTasks = loadedTasks.map(t => ({
-            ...t,
-            assigneeIds: t.assigneeIds || (t.assigneeId ? [t.assigneeId] : []),
-            clientId: t.clientId || null
-          }));
-          tasksOptimistic.setAll(normalizedTasks);
-        }
+      // Solo actualizar si hay datos nuevos y no son errores (null)
+      if (loadedTasks !== null && currentTasksJSON !== loadedTasksJSON) {
+        console.log('🔄 Sync: Detectados cambios en Tareas');
+        const normalizedTasks = loadedTasks.map(t => ({
+          ...t,
+          assigneeIds: t.assigneeIds || (t.assigneeId ? [t.assigneeId] : []),
+          clientId: t.clientId || null
+        }));
+        tasksOptimistic.setAll(normalizedTasks);
       }
 
-      // 2. Users (solo si se cargaron)
-      if (loadedUsers && loadedUsers.length > 0) {
-        if (JSON.stringify(usersRef.current) !== JSON.stringify(loadedUsers)) {
-          console.log('🔄 Sync: Detectados cambios en Usuarios');
-          usersOptimistic.setAll(loadedUsers);
-        }
+      if (loadedUsers !== null && JSON.stringify(usersRef.current) !== JSON.stringify(loadedUsers)) {
+        console.log('🔄 Sync: Detectados cambios en Usuarios');
+        usersOptimistic.setAll(loadedUsers);
       }
 
-      // 3. Clients (solo si se cargaron)
-      if (loadedClients && loadedClients.length > 0) {
-        if (JSON.stringify(clientsRef.current) !== JSON.stringify(loadedClients)) {
-          console.log('🔄 Sync: Detectados cambios en Clientes');
-          clientsOptimistic.setAll(loadedClients);
-        }
+      if (loadedClients !== null && JSON.stringify(clientsRef.current) !== JSON.stringify(loadedClients)) {
+        console.log('🔄 Sync: Detectados cambios en Clientes');
+        clientsOptimistic.setAll(loadedClients);
       }
 
-      // 4. Friday Time Offs (solo si se cargaron)
-      if (loadedFridayTimeOffs && loadedFridayTimeOffs.length > 0) {
-        if (JSON.stringify(fridayTimeOffsRef.current) !== JSON.stringify(loadedFridayTimeOffs)) {
-          console.log('🔄 Sync: Detectados cambios en Tardes Libres');
-          fridayTimeOffsOptimistic.setAll(loadedFridayTimeOffs);
-        }
+      if (loadedFridayTimeOffs !== null && JSON.stringify(fridayTimeOffsRef.current) !== JSON.stringify(loadedFridayTimeOffs)) {
+        console.log('🔄 Sync: Detectados cambios en Tardes Libres');
+        fridayTimeOffsOptimistic.setAll(loadedFridayTimeOffs);
       }
 
-      // 5. Holidays (solo si se cargaron)
-      if (loadedHolidays && loadedHolidays.length > 0) {
-        if (JSON.stringify(holidaysRef.current) !== JSON.stringify(loadedHolidays)) {
-          console.log('🔄 Sync: Detectados cambios en Feriados');
-          holidaysOptimistic.setAll(loadedHolidays);
-        }
+      if (loadedHolidays !== null && JSON.stringify(holidaysRef.current) !== JSON.stringify(loadedHolidays)) {
+        console.log('🔄 Sync: Detectados cambios en Feriados');
+        holidaysOptimistic.setAll(loadedHolidays);
       }
 
-      // 6. Vacations (solo si se cargaron)
-      if (loadedVacations) {
-        if (JSON.stringify(vacationsRef.current) !== JSON.stringify(loadedVacations)) {
-          console.log('🔄 Sync: Detectados cambios en Vacaciones');
-          vacationsOptimistic.setAll(loadedVacations);
-        }
+      if (loadedVacations !== null && JSON.stringify(vacationsRef.current) !== JSON.stringify(loadedVacations)) {
+        console.log('🔄 Sync: Detectados cambios en Vacaciones');
+        vacationsOptimistic.setAll(loadedVacations);
       }
 
     } catch (error) {
@@ -326,27 +308,27 @@ const App: React.FC = () => {
         sheetsService.getVacations()
       ]);
 
-      if (loadedUsers.length > 0) {
+      if (loadedUsers !== null) {
         usersOptimistic.setAll(loadedUsers);
       }
 
-      if (loadedClients.length > 0) {
+      if (loadedClients !== null) {
         clientsOptimistic.setAll(loadedClients);
       }
 
-      if (loadedFridayTimeOffs.length > 0) {
+      if (loadedFridayTimeOffs !== null) {
         fridayTimeOffsOptimistic.setAll(loadedFridayTimeOffs);
       }
 
-      if (loadedHolidays.length > 0) {
+      if (loadedHolidays !== null) {
         holidaysOptimistic.setAll(loadedHolidays);
       }
 
-      if (loadedVacations) {
+      if (loadedVacations !== null) {
         vacationsOptimistic.setAll(loadedVacations);
       }
 
-      if (loadedTasks.length > 0) {
+      if (loadedTasks !== null) {
         const tasksWithAssigneeIds = loadedTasks.map((t: Task) => ({
           ...t,
           assigneeIds: t.assigneeIds || (t.assigneeId ? [t.assigneeId] : []),

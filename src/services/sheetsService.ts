@@ -35,8 +35,7 @@ export const sheetsService = {
       }));
     } catch (error) {
       console.error('❌ Error loading clients from Sheets:', error);
-      const saved = localStorage.getItem('clients');
-      return saved ? JSON.parse(saved) : [];
+      return null;
     }
   },
 
@@ -77,7 +76,7 @@ export const sheetsService = {
       }));
     } catch (error) {
       console.error('❌ Error loading users from Sheets:', error);
-      return [];
+      return null;
     }
   },
 
@@ -169,7 +168,7 @@ export const sheetsService = {
       });
     } catch (error) {
       console.error('Error loading tasks from Sheets:', error);
-      return [];
+      return null;
     }
   },
 
@@ -441,7 +440,7 @@ export const sheetsService = {
       }));
     } catch (error) {
       console.error('❌ Error loading friday time offs from Sheets:', error);
-      return [];
+      return null;
     }
   },
 
@@ -500,7 +499,7 @@ export const sheetsService = {
       }));
     } catch (error) {
       console.error('❌ Error loading holidays from Sheets:', error);
-      return [];
+      return null;
     }
   },
 
@@ -564,7 +563,7 @@ export const sheetsService = {
       }));
     } catch (error) {
       console.error('❌ Error loading vacations from Sheets:', error);
-      return [];
+      return null;
     }
   },
 
