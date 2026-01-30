@@ -136,12 +136,16 @@ const App: React.FC = () => {
   // ===================== FILTRADO GLOBAL POR ESTADO ACTIVO =====================
   const isAdmin = currentUser?.role === 'Admin';
 
+  const activeUsers = useMemo(() => {
+    return users.filter(u => u.isActive !== false);
+  }, [users]);
+
   const visibleUsers = useMemo(() => {
     if (isAdmin) return users;
-    return users.filter(u => u.isActive !== false);
-  }, [users, isAdmin]);
+    return activeUsers;
+  }, [users, isAdmin, activeUsers]);
 
-  const activeUserIds = useMemo(() => new Set(users.filter(u => u.isActive !== false).map(u => u.id)), [users]);
+  const activeUserIds = useMemo(() => new Set(activeUsers.map(u => u.id)), [activeUsers]);
 
   const visibleTasks = useMemo(() => {
     if (isAdmin) return tasks;
@@ -152,14 +156,12 @@ const App: React.FC = () => {
   }, [tasks, isAdmin, activeUserIds]);
 
   const visibleVacations = useMemo(() => {
-    if (isAdmin) return vacations;
     return vacations.filter(v => activeUserIds.has(v.userId));
-  }, [vacations, isAdmin, activeUserIds]);
+  }, [vacations, activeUserIds]);
 
   const visibleFridayTimeOffs = useMemo(() => {
-    if (isAdmin) return fridayTimeOffs;
     return fridayTimeOffs.filter(to => activeUserIds.has(to.userId));
-  }, [fridayTimeOffs, isAdmin, activeUserIds]);
+  }, [fridayTimeOffs, activeUserIds]);
 
   // Handlers
   const handleLogin = (user: User) => {
@@ -1615,9 +1617,9 @@ const App: React.FC = () => {
 
           {viewMode === ViewMode.FRIDAY_TIME_OFF && (
             <FridayTimeOff
-              users={visibleUsers}
+              users={activeUsers}
               currentUser={currentUser}
-              fridayTimeOffs={fridayTimeOffs}
+              fridayTimeOffs={visibleFridayTimeOffs}
               holidays={holidays}
               onCreateTimeOff={handleCreateFridayTimeOff}
               onUpdateTimeOff={handleUpdateFridayTimeOff}
@@ -1629,9 +1631,9 @@ const App: React.FC = () => {
 
           {viewMode === ViewMode.VACATIONS && (
             <VacationPlanner
-              users={visibleUsers}
+              users={activeUsers}
               currentUser={currentUser}
-              vacations={vacations}
+              vacations={visibleVacations}
               holidays={holidays}
               onCreateVacation={handleCreateVacation}
               onDeleteVacation={handleDeleteVacation}

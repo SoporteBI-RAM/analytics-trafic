@@ -73,7 +73,7 @@ export const sheetsService = {
         password: row[3] || '',
         role: row[4] || 'Analyst',
         avatar: row[5] || 'https://picsum.photos/seed/default/200',
-        isActive: row[6] === undefined ? true : row[6] === 'true' // Columna G
+        isActive: row[6] === 'false' ? false : true // Por defecto true si está vacío o es 'true'
       }));
     } catch (error) {
       console.error('❌ Error loading users from Sheets:', error);

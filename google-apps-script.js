@@ -14,68 +14,15 @@ function doPost(e) {
       return handleIncrementalOperation_Fixed(sheet, data);
     }
 
-    // LEGACY: Mantener compatibilidad con guardado completo (Bulk Save)
-    if (data.tasks) {
-      const tasksSheet = sheet.getSheetByName('Tasks');
-      if (tasksSheet.getLastRow() > 1) {
-        tasksSheet.deleteRows(2, tasksSheet.getLastRow() - 1);
-      }
-      if (tasksSheet.getLastRow() === 0) {
-        tasksSheet.appendRow(['id', 'title', 'description', 'status', 'priority', 'assigneeId', 'startDate', 'dueDate', 'tags', 'assigneeIds', 'clientId', 'completedDate', 'recurrence', 'parentTaskId']);
-      }
-      data.tasks.forEach(task => {
-        // Asegurar que tengamos 14 columnas para coincidir con el esquema nuevo
-        tasksSheet.appendRow([
-          task.id || '', task.title || '', task.description || '', task.status || 'todo',
-          task.priority || 'medium', task.assigneeId || '', task.startDate || '',
-          task.dueDate || '', (task.tags || []).join(','), (task.assigneeIds || []).join(','),
-          task.clientId || '',
-          task.completedDate || '',
-          task.recurrence ? JSON.stringify(task.recurrence) : '', // Intentar preservar recurrencia si viene
-          task.parentTaskId || ''
-        ]);
-      });
-    }
-
-    if (data.users) {
-      const usersSheet = sheet.getSheetByName('Users');
-      if (usersSheet.getLastRow() > 1) {
-        usersSheet.deleteRows(2, usersSheet.getLastRow() - 1);
-      }
-      if (usersSheet.getLastRow() === 0) {
-        usersSheet.appendRow(['id', 'name', 'email', 'password', 'role', 'avatar', 'isActive']);
-      }
-      data.users.forEach(user => {
-        usersSheet.appendRow([
-          user.id || '', user.name || '', user.email || '', user.password || '',
-          user.role || 'Analyst', user.avatar || '',
-          user.isActive !== undefined ? user.isActive.toString() : 'true'
-        ]);
-      });
-    }
-
-    if (data.clients) {
-      let clientsSheet = sheet.getSheetByName('Clients');
-      if (!clientsSheet) {
-        clientsSheet = sheet.insertSheet('Clients');
-      }
-      if (clientsSheet.getLastRow() > 1) {
-        clientsSheet.deleteRows(2, clientsSheet.getLastRow() - 1);
-      }
-      if (clientsSheet.getLastRow() === 0) {
-        clientsSheet.appendRow(['id', 'name']);
-      }
-      data.clients.forEach(client => {
-        clientsSheet.appendRow([client.id || '', client.name || '']);
-      });
-    }
-
-    if (data.tasks || data.users || data.clients) {
-      return ContentService.createTextOutput(JSON.stringify({ success: true, _version: 'DEBUG_VERIFIED_LEGACY_SUPPORT', message: 'Legacy bulk save executed' })).setMimeType(ContentService.MimeType.JSON);
-    }
+    // PROTECCIÓN: Se han desactivado los métodos de guardado masivo (Legacy) 
+    // para evitar borrados accidentales de hojas completas.
+    // Todas las operaciones deben ser incrementales (data.operation && data.type).
 
     // Si no es incremental ni legacy conocido
-    return ContentService.createTextOutput(JSON.stringify({ success: false, error: 'Operación no reconocida' })).setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      error: 'Operación no reconocida o método masivo desactivado por seguridad'
+    })).setMimeType(ContentService.MimeType.JSON);
   } catch (error) {
     return ContentService.createTextOutput(JSON.stringify({ success: false, error: error.toString() })).setMimeType(ContentService.MimeType.JSON);
   }
