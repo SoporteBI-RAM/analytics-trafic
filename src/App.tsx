@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Auth } from './components/Auth';
 import { TaskCard } from './components/TaskCard';
 import { GanttView } from './components/GanttView';
@@ -52,102 +52,64 @@ const App: React.FC = () => {
   const [showCelebration, setShowCelebration] = useState(false);
   const [completedTaskTitle, setCompletedTaskTitle] = useState('');
 
-  // Ref para controlar el cooldown de sincronización
-  // Evita que la sync sobrescriba cambios locales recientes
-  const lastWriteTime = React.useRef<number>(0);
-  const pollCount = React.useRef<number>(0); // Contador para polling escalonado
-  const COOLDOWN_MS = 5000; // REDUCIDO: 5 segundos de espera tras escribir (antes 15s)
+  // Filtros de interfaz - DEFINIDOS ANTES DEL USO
+  const [selectedStatuses, setSelectedStatuses] = useState<Status[]>(['todo', 'inprogress', 'review']);
+  const [selectedPriorities, setSelectedPriorities] = useState<Priority[]>([]);
+  const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
+  const [selectedClients, setSelectedClients] = useState<string[]>([]);
+  const [searchTaskName, setSearchTaskName] = useState('');
+  const [dateFrom, setDateFrom] = useState(`${getLocalDateString().substring(0, 8)}01`);
+  const [dateTo, setDateTo] = useState(getLocalDateString());
+  const [showOverdueOnly, setShowOverdueOnly] = useState(false);
+  const [showMotherTasks, setShowMotherTasks] = useState(false);
+  const [showRecurringOnly, setShowRecurringOnly] = useState(false);
 
-  // Hook de notificaciones para feedback instantáneo
+  // Ref para controlar el cooldown de sincronización
+  const lastWriteTime = React.useRef<number>(0);
+  const pollCount = React.useRef<number>(0);
+  const COOLDOWN_MS = 5000;
+
+  // Hook de notificaciones
   const { notifications, addNotification, removeNotification } = useNotifications();
 
-  // Hooks optimistas para tasks, users y clients
+  // Hooks optimistas
   const tasksOptimistic = useOptimisticData<Task>(INITIAL_TASKS, {
-    syncFn: async (operation, task) => {
-      await sheetsService.saveTaskIncremental(operation, task);
-    },
-    onSyncSuccess: (op) => {
-      console.log(`✅ Tarea ${op.operation} sincronizada`);
-      // Extender cooldown para dar tiempo a que Sheets propague
-      lastWriteTime.current = Date.now();
-    },
-    onSyncError: (error, op) => {
-      console.error(`❌ Error sincronizando tarea ${op.operation}:`, error);
-      addNotification(`Error al sincronizar tarea: ${error.message}`, 'error');
-    }
+    syncFn: async (operation, task) => { await sheetsService.saveTaskIncremental(operation, task); },
+    onSyncSuccess: () => { lastWriteTime.current = Date.now(); },
+    onSyncError: (error) => { addNotification(`Error al sincronizar tarea: ${error.message}`, 'error'); }
   });
 
   const usersOptimistic = useOptimisticData<User>(MOCK_USERS, {
-    syncFn: async (operation, user) => {
-      await sheetsService.saveUserIncremental(operation, user);
-    },
-    onSyncSuccess: (op) => {
-      console.log(`✅ Usuario ${op.operation} sincronizado`);
-      lastWriteTime.current = Date.now();
-    },
-    onSyncError: (error, op) => {
-      console.error(`❌ Error sincronizando usuario ${op.operation}:`, error);
-      addNotification(`Error al sincronizar usuario: ${error.message}`, 'error');
-    }
+    syncFn: async (operation, user) => { await sheetsService.saveUserIncremental(operation, user); },
+    onSyncSuccess: () => { lastWriteTime.current = Date.now(); },
+    onSyncError: (error) => { addNotification(`Error al sincronizar usuario: ${error.message}`, 'error'); }
   });
 
   const clientsOptimistic = useOptimisticData<Client>(MOCK_CLIENTS, {
-    syncFn: async (operation, client) => {
-      await sheetsService.saveClientIncremental(operation, client);
-    },
-    onSyncSuccess: (op) => {
-      console.log(`✅ Cliente ${op.operation} sincronizado`);
-      lastWriteTime.current = Date.now();
-    },
-    onSyncError: (error, op) => {
-      console.error(`❌ Error sincronizando cliente ${op.operation}:`, error);
-      addNotification(`Error al sincronizar cliente: ${error.message}`, 'error');
-    }
+    syncFn: async (operation, client) => { await sheetsService.saveClientIncremental(operation, client); },
+    onSyncSuccess: () => { lastWriteTime.current = Date.now(); },
+    onSyncError: (error) => { addNotification(`Error al sincronizar cliente: ${error.message}`, 'error'); }
   });
 
   const fridayTimeOffsOptimistic = useOptimisticData<FridayTimeOffType>([], {
-    syncFn: async (operation, timeOff) => {
-      await sheetsService.saveFridayTimeOffIncremental(operation, timeOff);
-    },
-    onSyncSuccess: (op) => {
-      console.log(`✅ Tarde libre ${op.operation} sincronizada`);
-      lastWriteTime.current = Date.now();
-    },
-    onSyncError: (error, op) => {
-      console.error(`❌ Error sincronizando tarde libre ${op.operation}:`, error);
-      addNotification(`Error al sincronizar tarde libre: ${error.message}`, 'error');
-    }
+    syncFn: async (operation, timeOff) => { await sheetsService.saveFridayTimeOffIncremental(operation, timeOff); },
+    onSyncSuccess: () => { lastWriteTime.current = Date.now(); },
+    onSyncError: (error) => { addNotification(`Error al sincronizar tarde libre: ${error.message}`, 'error'); }
   });
 
   const holidaysOptimistic = useOptimisticData<Holiday>([], {
-    syncFn: async (operation, holiday) => {
-      await sheetsService.saveHolidayIncremental(operation, holiday);
-    },
-    onSyncSuccess: (op) => {
-      console.log(`✅ Feriado ${op.operation} sincronizado`);
-      lastWriteTime.current = Date.now();
-    },
-    onSyncError: (error, op) => {
-      console.error(`❌ Error sincronizando feriado ${op.operation}:`, error);
-      addNotification(`Error al sincronizar feriado: ${error.message}`, 'error');
-    }
+    syncFn: async (operation, holiday) => { await sheetsService.saveHolidayIncremental(operation, holiday); },
+    onSyncSuccess: () => { lastWriteTime.current = Date.now(); },
+    onSyncError: (error) => { addNotification(`Error al sincronizar feriado: ${error.message}`, 'error'); }
   });
 
   const vacationsOptimistic = useOptimisticData<Vacation>([], {
-    syncFn: async (operation, vacation) => {
-      await sheetsService.saveVacationIncremental(operation, vacation);
-    },
-    onSyncSuccess: (op) => {
-      console.log(`✅ Vacación ${op.operation} sincronizada`);
-      lastWriteTime.current = Date.now();
-    },
-    onSyncError: (error, op) => {
-      console.error(`❌ Error sincronizando vacación ${op.operation}:`, error);
-      addNotification(`Error al sincronizar vacación: ${error.message}`, 'error');
-    }
+    syncFn: async (operation, vacation) => { await sheetsService.saveVacationIncremental(operation, vacation); },
+    onSyncSuccess: () => { lastWriteTime.current = Date.now(); },
+    onSyncError: (error) => { addNotification(`Error al sincronizar vacación: ${error.message}`, 'error'); }
   });
 
-  // Aliases para facilitar migración
+  // Aliases
   const tasks = tasksOptimistic.data;
   const users = usersOptimistic.data;
   const clients = clientsOptimistic.data;
@@ -156,7 +118,7 @@ const App: React.FC = () => {
   const vacations = vacationsOptimistic.data;
   const setTasks = tasksOptimistic.setAll; // Alias para compatibilidad con código legacy
 
-  // Refs para estado actual (evita stale closures en setInterval)
+  // Refs para estado actual
   const tasksRef = React.useRef(tasks);
   const usersRef = React.useRef(users);
   const clientsRef = React.useRef(clients);
@@ -164,7 +126,6 @@ const App: React.FC = () => {
   const holidaysRef = React.useRef(holidays);
   const vacationsRef = React.useRef(vacations);
 
-  // Actualizar refs cuando cambia el estado
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
   useEffect(() => { usersRef.current = users; }, [users]);
   useEffect(() => { clientsRef.current = clients; }, [clients]);
@@ -172,34 +133,45 @@ const App: React.FC = () => {
   useEffect(() => { holidaysRef.current = holidays; }, [holidays]);
   useEffect(() => { vacationsRef.current = vacations; }, [vacations]);
 
-  // Filtros
-  const [selectedStatuses, setSelectedStatuses] = useState<Status[]>([]);
-  const [selectedPriorities, setSelectedPriorities] = useState<Priority[]>([]);
-  const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
-  const [selectedClients, setSelectedClients] = useState<string[]>([]);
-  const [searchTaskName, setSearchTaskName] = useState('');
-  const [dateFrom, setDateFrom] = useState(`${getLocalDateString().substring(0, 8)}01`);
-  const [dateTo, setDateTo] = useState(getLocalDateString());
-  const [showOverdueOnly, setShowOverdueOnly] = useState(false);
-  const [showMotherTasks, setShowMotherTasks] = useState(false); // Por defecto ocultas
-  const [showRecurringOnly, setShowRecurringOnly] = useState(false);
+  // ===================== FILTRADO GLOBAL POR ESTADO ACTIVO =====================
+  const isAdmin = currentUser?.role === 'Admin';
 
-  // Función para manejar login y auto-seleccionar el usuario en filtros
+  const visibleUsers = useMemo(() => {
+    if (isAdmin) return users;
+    return users.filter(u => u.isActive !== false);
+  }, [users, isAdmin]);
+
+  const activeUserIds = useMemo(() => new Set(users.filter(u => u.isActive !== false).map(u => u.id)), [users]);
+
+  const visibleTasks = useMemo(() => {
+    if (isAdmin) return tasks;
+    return tasks.filter(t => {
+      const assignees = t.assigneeIds || (t.assigneeId ? [t.assigneeId] : []);
+      return assignees.some(id => activeUserIds.has(id));
+    });
+  }, [tasks, isAdmin, activeUserIds]);
+
+  const visibleVacations = useMemo(() => {
+    if (isAdmin) return vacations;
+    return vacations.filter(v => activeUserIds.has(v.userId));
+  }, [vacations, isAdmin, activeUserIds]);
+
+  const visibleFridayTimeOffs = useMemo(() => {
+    if (isAdmin) return fridayTimeOffs;
+    return fridayTimeOffs.filter(to => activeUserIds.has(to.userId));
+  }, [fridayTimeOffs, isAdmin, activeUserIds]);
+
+  // Handlers
   const handleLogin = (user: User) => {
     setCurrentUser(user);
-    // Auto-seleccionar el usuario logueado en el filtro de responsables
-    // Si es Analyst, es OBLIGATORIO que esté seleccionado él mismo
     if (user.role === 'Analyst') {
       setSelectedAssignees([user.id]);
     } else {
-      // Admin ve a todos por defecto (vacío = todos)
       setSelectedAssignees([user.id]);
     }
-    // Excluir tareas finalizadas por defecto
     setSelectedStatuses(['todo', 'inprogress', 'review']);
   };
 
-  // Función para manejar logout y limpiar filtros
   const handleLogout = () => {
     setCurrentUser(null);
     setSelectedAssignees([]);
@@ -917,8 +889,8 @@ const App: React.FC = () => {
     }
   };
 
-  // Aplicar filtros
-  const filteredTasks = tasks.filter(task => {
+  // Aplicar filtros sobre las tareas VISIBLES
+  const filteredTasks = visibleTasks.filter(task => {
     // Filtro por estado
     if (selectedStatuses.length > 0 && !selectedStatuses.includes(task.status)) {
       return false;
@@ -981,7 +953,7 @@ const App: React.FC = () => {
 
 
   // Tareas que definen el "universo" actual (para el denominador del contador)
-  const contextTasks = tasks.filter(task => {
+  const contextTasks = visibleTasks.filter(task => {
     // 1. Restricción por Rol (Analista solo ve lo suyo)
     if (currentUser?.role === 'Analyst') {
       const isAssigned = task.assigneeIds?.includes(currentUser.id) || task.assigneeId === currentUser.id;
@@ -1019,7 +991,7 @@ const App: React.FC = () => {
 
   // Tareas para vistas de rendimiento: incluye TODAS las tareas (ignorando filtro de estado)
   // Se usa para comparar el total de tareas vs las que coinciden con los filtros
-  const performanceTasksPreFilter = tasks.filter(task => {
+  const performanceTasksPreFilter = visibleTasks.filter(task => {
     // 1. Restricción por Rol (Analista solo ve lo suyo)
     if (currentUser?.role === 'Analyst') {
       const isAssigned = task.assigneeIds?.includes(currentUser.id) || task.assigneeId === currentUser.id;
@@ -1108,7 +1080,7 @@ const App: React.FC = () => {
     done: displayTasks.filter(t => t.status === 'done'),
   };
 
-  const tasksByAssignee = users.map(user => ({
+  const tasksByAssignee = visibleUsers.map(user => ({
     user,
     tasks: displayTasks.filter(t => t.assigneeIds?.includes(user.id) || t.assigneeId === user.id)
   }));
@@ -1389,7 +1361,7 @@ const App: React.FC = () => {
 
           <Filters
             currentUser={currentUser!}
-            users={users}
+            users={visibleUsers}
             clients={clients}
             selectedStatuses={selectedStatuses}
             selectedPriorities={selectedPriorities}
@@ -1414,12 +1386,11 @@ const App: React.FC = () => {
             onClearFilters={handleClearFilters}
             onClearFiltersBySection={handleClearFiltersBySection}
           />
-
           {viewMode === ViewMode.DASHBOARD && (
             <Dashboard
               tasks={displayTasks}
               contextTasks={performanceTasks}
-              users={users}
+              users={visibleUsers}
               clients={clients}
               currentUser={currentUser!}
             />
@@ -1619,7 +1590,7 @@ const App: React.FC = () => {
           {viewMode === ViewMode.TABLE && (
             <TableView
               tasks={displayTasks}
-              users={users}
+              users={visibleUsers}
               clients={clients}
               onEditTask={(task) => setEditingTask(task)}
               onDeleteTask={handleDeleteTask}
@@ -1637,15 +1608,15 @@ const App: React.FC = () => {
           {viewMode === ViewMode.USER_PERFORMANCE && (
             <UserPerformance
               tasks={performanceTasks}
-              users={users}
+              users={visibleUsers}
               currentUser={currentUser!}
             />
           )}
 
           {viewMode === ViewMode.FRIDAY_TIME_OFF && (
             <FridayTimeOff
-              users={users}
-              currentUser={currentUser!}
+              users={visibleUsers}
+              currentUser={currentUser}
               fridayTimeOffs={fridayTimeOffs}
               holidays={holidays}
               onCreateTimeOff={handleCreateFridayTimeOff}
@@ -1658,8 +1629,8 @@ const App: React.FC = () => {
 
           {viewMode === ViewMode.VACATIONS && (
             <VacationPlanner
-              users={users}
-              currentUser={currentUser!}
+              users={visibleUsers}
+              currentUser={currentUser}
               vacations={vacations}
               holidays={holidays}
               onCreateVacation={handleCreateVacation}

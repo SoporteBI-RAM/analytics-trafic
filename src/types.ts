@@ -11,6 +11,7 @@ export interface User {
   avatar: string;
   avatarColor?: string;
   role: 'Admin' | 'Analyst';
+  isActive?: boolean;
 }
 
 export interface Client {
@@ -74,7 +75,7 @@ export interface Vacation {
   userId: string;
   startDate: string; // YYYY-MM-DD
   endDate: string; // YYYY-MM-DD
-  daysCount: number; // Días hábiles calculados
+  daysCount: number; // Días totales (incluyendo fines de semana) calculados
   status: 'pending' | 'approved' | 'rejected' | 'taken';
   createdAt: string;
   createdBy: string;

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { User, Vacation, Holiday } from '../types';
-import { ChevronLeft, ChevronRight, Users, Palmtree, UserPlus, CheckCheck, X, Calendar as CalendarIcon, CalendarDays, Trash2, Mail } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Users, Palmtree, UserPlus, CheckCheck, CheckCircle2, X, Calendar as CalendarIcon, CalendarDays, Trash2, Mail } from 'lucide-react';
 import { getLocalDateString } from '../utils/dateUtils';
 
 interface VacationPlannerProps {
@@ -41,6 +41,7 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
     const [selectedDetail, setSelectedDetail] = useState<{ vacation: Vacation, dateStr: string } | null>(null);
     const [showSummaryModal, setShowSummaryModal] = useState(false);
     const [summaryContent, setSummaryContent] = useState<string | null>(null);
+    const [selectedUserSummary, setSelectedUserSummary] = useState<User | null>(null);
 
     const isAdmin = currentUser.role === 'Admin';
 
@@ -114,7 +115,8 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
     };
 
     const handleDateClick = (date: Date) => {
-        if (isWeekend(date) || getHoliday(date)) return;
+        // Solo bloquear feriados, permitir fines de semana
+        if (getHoliday(date)) return;
 
         const dateStr = formatDate(date);
 
@@ -161,18 +163,32 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
         return calculateBusinessDaysForRange(selectionStart, selectionEnd);
     };
 
+    // Calcular días totales (incluyendo fines de semana)
+    const calculateTotalDays = (startStr: string, endStr: string) => {
+        const start = new Date(startStr + 'T12:00:00');
+        const end = new Date(endStr + 'T12:00:00');
+        const diffTime = Math.abs(end.getTime() - start.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 para incluir ambos días
+        return diffDays;
+    };
+
+    const calculateTotalDaysForSelection = () => {
+        if (!selectionStart || !selectionEnd) return 0;
+        return calculateTotalDays(selectionStart, selectionEnd);
+    };
+
     const handleSubmitVacation = () => {
         if (!selectionStart || !selectionEnd) return;
 
-        const daysCount = calculateBusinessDays();
+        const totalDays = calculateTotalDaysForSelection();
 
         const newVacation: Vacation = {
             id: `vac-${Date.now()}`,
             userId: isAdmin ? targetUserId : currentUser.id,
             startDate: selectionStart,
             endDate: selectionEnd,
-            daysCount: daysCount,
-            status: 'approved',
+            daysCount: totalDays,
+            status: 'pending', // Ahora inicia como Solicitado
             createdAt: new Date().toISOString(),
             createdBy: currentUser.id
         };
@@ -217,7 +233,7 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
         const hasAfter = dateStr < vacation.endDate;
 
         if (hasBefore) {
-            const daysCount = calculateBusinessDaysForRange(vacation.startDate, prevDateStr);
+            const daysCount = calculateTotalDays(vacation.startDate, prevDateStr);
             if (daysCount > 0) {
                 const newVac1: Vacation = {
                     ...vacation,
@@ -231,7 +247,7 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
         }
 
         if (hasAfter) {
-            const daysCount = calculateBusinessDaysForRange(nextDateStr, vacation.endDate);
+            const daysCount = calculateTotalDays(nextDateStr, vacation.endDate);
             if (daysCount > 0) {
                 const newVac2: Vacation = {
                     ...vacation,
@@ -247,40 +263,47 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
     };
 
     const handleGenerateVacationSummary = () => {
-        const monthName = MONTHS[currentMonth];
-        let content = `Resumen de Vacaciones - ${monthName} ${currentYear}\n`;
+        // Calcular el rango de un año completo desde hoy
+        const todayDate = new Date();
+        const oneYearFromNow = new Date(todayDate);
+        oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+
+        let content = `Resumen de Vacaciones - Año Completo\n`;
+        content += `Desde: ${todayDate.toLocaleDateString('es-ES')} hasta ${oneYearFromNow.toLocaleDateString('es-ES')}\n`;
         content += `Tráfico Analítica RAM\n`;
         content += `-------------------------------------------\n\n`;
 
         let hasVacations = false;
         users.forEach(user => {
-            // Filtrar vacaciones de este usuario que se crucen con el mes actual
+            // Filtrar vacaciones de este usuario que estén dentro del próximo año
             const userVacations = vacations.filter(v => {
                 if (v.userId !== user.id || v.status === 'rejected') return false;
 
-                // Una vacación se muestra si empieza o termina en este mes
+                // Una vacación se muestra si está dentro del rango de un año desde hoy
                 const vStart = new Date(v.startDate + 'T12:00:00');
                 const vEnd = new Date(v.endDate + 'T12:00:00');
-                const monthStart = new Date(currentYear, currentMonth, 1);
-                const monthEnd = new Date(currentYear, currentMonth + 1, 0);
 
-                return (vStart <= monthEnd && vEnd >= monthStart);
-            });
+                // Incluir si la vacación termina después de hoy Y empieza antes de un año desde hoy
+                return (vEnd >= todayDate && vStart <= oneYearFromNow);
+            }).sort((a, b) => a.startDate.localeCompare(b.startDate)); // Ordenar por fecha de inicio
 
             if (userVacations.length > 0) {
                 hasVacations = true;
                 content += `${user.name.toUpperCase()}:\n`;
                 userVacations.forEach((v) => {
-                    const start = new Date(v.startDate + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long' });
-                    const end = new Date(v.endDate + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long' });
-                    content += `- Del ${start} al ${end} (${v.daysCount} días hábiles) [${v.status === 'taken' ? 'VALIDADO' : 'APROBADO'}]\n`;
+                    const start = new Date(v.startDate + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+                    const end = new Date(v.endDate + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+                    const totalDays = calculateTotalDays(v.startDate, v.endDate);
+                    const businessDays = calculateBusinessDaysForRange(v.startDate, v.endDate);
+                    const statusLabel = v.status === 'taken' ? 'CONFIRMADO' : v.status === 'approved' ? 'APROBADO' : 'SOLICITADO';
+                    content += `- Del ${start} al ${end} (${totalDays} días / ${businessDays} laborales) [${statusLabel}]\n`;
                 });
                 content += '\n';
             }
         });
 
         if (!hasVacations) {
-            content += `No hay vacaciones registradas que coincidan con este mes.\n\n`;
+            content += `No hay vacaciones registradas para el próximo año.\n\n`;
         }
 
         content += `-------------------------------------------\n`;
@@ -290,11 +313,51 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
         setShowSummaryModal(true);
     };
 
-    const handleValidateVacation = () => {
+    const handleGenerateUserVacationSummary = (user: User) => {
+        const userVacations = vacations.filter(v =>
+            v.userId === user.id &&
+            v.status !== 'rejected' &&
+            v.startDate.startsWith(currentYear.toString())
+        ).sort((a, b) => a.startDate.localeCompare(b.startDate));
+
+        let content = `Resumen de Vacaciones - ${user.name}\n`;
+        content += `Año ${currentYear}\n`;
+        content += `Tráfico Analítica RAM\n`;
+        content += `-------------------------------------------\n\n`;
+
+        if (userVacations.length > 0) {
+            userVacations.forEach((v) => {
+                const start = new Date(v.startDate + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+                const end = new Date(v.endDate + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+                const totalDays = calculateTotalDays(v.startDate, v.endDate);
+                const businessDays = calculateBusinessDaysForRange(v.startDate, v.endDate);
+                const statusLabel = v.status === 'taken' ? 'CONFIRMADO' : v.status === 'approved' ? 'APROBADO' : 'SOLICITADO';
+                content += `- Del ${start} al ${end} (${totalDays} días / ${businessDays} laborales) [${statusLabel}]\n`;
+            });
+
+            const stats = userVacationStats[user.id];
+            content += `\nTOTAL AÑO ${currentYear}:\n`;
+            content += `- Días Totales: ${stats?.total || 0}\n`;
+            content += `- Días Laborales: ${stats?.business || 0}\n`;
+        } else {
+            content += `No tiene vacaciones registradas para el año ${currentYear}.\n`;
+        }
+
+        content += `\n-------------------------------------------\n`;
+        content += `Generado el: ${new Date().toLocaleDateString('es-ES')} a las ${new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
+
+        setSummaryContent(content);
+        setShowSummaryModal(true);
+        setSelectedUserSummary(null);
+    };
+
+    const handleUpdateVacationStatus = (status: 'approved' | 'taken') => {
         if (selectedDetail && onUpdateVacation) {
             const updatedVacation: Vacation = {
                 ...selectedDetail.vacation,
-                status: 'taken'
+                status: status,
+                approvedBy: status === 'approved' ? currentUser.id : selectedDetail.vacation.approvedBy,
+                approvedAt: status === 'approved' ? new Date().toISOString() : selectedDetail.vacation.approvedAt
             };
             onUpdateVacation(updatedVacation);
             setSelectedDetail(null);
@@ -302,14 +365,16 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
     };
 
     const userVacationStats = useMemo(() => {
-        const stats: Record<string, number> = {};
+        const stats: Record<string, { total: number, business: number }> = {};
         vacations.forEach(v => {
-            if (v.status !== 'rejected') {
-                stats[v.userId] = (stats[v.userId] || 0) + v.daysCount;
+            if (v.status !== 'rejected' && v.startDate.startsWith(currentYear.toString())) {
+                if (!stats[v.userId]) stats[v.userId] = { total: 0, business: 0 };
+                stats[v.userId].total += calculateTotalDays(v.startDate, v.endDate);
+                stats[v.userId].business += calculateBusinessDaysForRange(v.startDate, v.endDate);
             }
         });
         return stats;
-    }, [vacations]);
+    }, [vacations, currentYear]);
 
     const getUser = (id: string) => users.find(u => u.id === id);
 
@@ -374,11 +439,11 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
                 {/* Leyenda */}
                 <div className="flex gap-4 mb-4 text-sm flex-wrap">
                     <div className="flex items-center gap-2"><div className="w-3 h-3 bg-white border border-gray-300 rounded"></div><span className="text-gray-500">Día hábil</span></div>
-                    <div className="flex items-center gap-2"><div className="w-3 h-3 bg-gray-100 rounded"></div><span className="text-gray-500">Fin de semana</span></div>
-                    <div className="flex items-center gap-2"><div className="w-3 h-3 bg-red-50 border border-red-200 rounded"></div><span className="text-gray-500">Feriado</span></div>
+                    <div className="flex items-center gap-2"><div className="w-3 h-3 bg-gray-100 rounded"></div><span className="text-gray-500">Fin de semana (seleccionable)</span></div>
+                    <div className="flex items-center gap-2"><div className="w-3 h-3 bg-red-50 border border-red-200 rounded"></div><span className="text-gray-500">Feriado (bloqueado)</span></div>
                     <div className="flex items-center gap-2"><div className="w-3 h-3 bg-teal-100 border border-teal-300 rounded"></div><span className="text-gray-500">Selección</span></div>
                     <div className="flex items-center gap-2"><div className="w-3 h-3 bg-indigo-100 border border-indigo-300 rounded"></div><span className="text-gray-500">Vacaciones</span></div>
-                    <div className="flex items-center gap-2"><CheckCheck size={14} className="text-teal-600" /> <span className="text-gray-500">Validado (Admin)</span></div>
+                    <div className="flex items-center gap-2"><CheckCheck size={14} className="text-teal-600" /> <span className="text-gray-500">Confirmado (Admin)</span></div>
                 </div>
 
                 {/* Calendario Grid */}
@@ -469,13 +534,17 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
                     <Users size={20} className="text-gray-600" />
                     Resumen de Días Tomados (Año {currentYear})
                 </h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                     {users.map(u => (
-                        <div key={u.id} className="bg-gray-50 p-4 rounded-lg flex items-center gap-3 border border-gray-100">
-                            <img src={u.avatar} className="w-10 h-10 rounded-full bg-white object-cover" />
+                        <div
+                            key={u.id}
+                            onClick={() => setSelectedUserSummary(u)}
+                            className="bg-gray-50 p-4 rounded-lg flex items-center gap-3 border border-gray-100 hover:bg-white hover:shadow-md hover:border-teal-200 cursor-pointer transition-all group"
+                        >
+                            <img src={u.avatar} className="w-10 h-10 rounded-full bg-white object-cover border-2 border-transparent group-hover:border-teal-400 transition-all" />
                             <div>
-                                <p className="font-semibold text-gray-800 text-sm">{u.name}</p>
-                                <p className="text-xs text-gray-500">{userVacationStats[u.id] || 0} días tomados</p>
+                                <p className="font-semibold text-gray-800 text-sm group-hover:text-teal-700">{u.name}</p>
+                                <p className="text-xs text-gray-500">{userVacationStats[u.id]?.total || 0} días ({userVacationStats[u.id]?.business || 0} hábiles)</p>
                             </div>
                         </div>
                     ))}
@@ -500,9 +569,15 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
                                 <span className="text-gray-500">Hasta:</span>
                                 <span className="font-medium">{selectionEnd}</span>
                             </div>
-                            <div className="border-t border-gray-200 pt-2 flex justify-between text-teal-700 font-bold">
-                                <span>Días hábiles:</span>
-                                <span>{calculateBusinessDays()} días</span>
+                            <div className="border-t border-gray-200 pt-2 space-y-1">
+                                <div className="flex justify-between text-indigo-700 font-bold">
+                                    <span>Duración Total:</span>
+                                    <span>{calculateTotalDaysForSelection()} días</span>
+                                </div>
+                                <div className="flex justify-between text-teal-600 text-xs">
+                                    <span>Días Laborales (Lun-Vie):</span>
+                                    <span>{calculateBusinessDays()} días</span>
+                                </div>
                             </div>
                         </div>
 
@@ -554,9 +629,19 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
                                 <span className="text-gray-500">Día Seleccionado:</span>
                                 <span className="font-bold text-amber-700">{selectedDetail.dateStr}</span>
                             </div>
-                            <div className="flex justify-between text-sm border-t border-gray-200 pt-2">
-                                <span className="text-gray-500">Duración Total:</span>
-                                <span className="font-bold text-indigo-700">{selectedDetail.vacation.daysCount} días hábiles</span>
+                            <div className="border-t border-gray-200 pt-2 space-y-1">
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-gray-500">Duración Total:</span>
+                                    <span className="font-bold text-indigo-700">
+                                        {calculateTotalDays(selectedDetail.vacation.startDate, selectedDetail.vacation.endDate)} días
+                                    </span>
+                                </div>
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-gray-400">Días Laborales (Lun-Vie):</span>
+                                    <span className="text-gray-600">
+                                        {calculateBusinessDaysForRange(selectedDetail.vacation.startDate, selectedDetail.vacation.endDate)} días
+                                    </span>
+                                </div>
                             </div>
                         </div>
 
@@ -585,23 +670,35 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
                             </div>
                         )}
 
-                        {/* Solo Admin: Validar */}
-                        {isAdmin && selectedDetail.vacation.status !== 'taken' && selectedDetail.vacation.startDate <= getLocalDateString() && (
-                            <div className="mt-4 pt-4 border-t border-gray-100">
-                                <button
-                                    onClick={handleValidateVacation}
-                                    className="w-full bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 shadow-lg shadow-teal-100"
-                                >
-                                    <CheckCheck size={16} />
-                                    Validar Periodo (Admin)
-                                </button>
+                        {/* Solo Admin: Acciones de Estado */}
+                        {isAdmin && selectedDetail.vacation.status !== 'taken' && (
+                            <div className="mt-4 pt-4 border-t border-gray-100 space-y-3">
+                                {selectedDetail.vacation.status === 'pending' && (
+                                    <button
+                                        onClick={() => handleUpdateVacationStatus('approved')}
+                                        className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-100"
+                                    >
+                                        <CheckCircle2 size={16} />
+                                        Aprobar Solicitud
+                                    </button>
+                                )}
+
+                                {selectedDetail.vacation.status === 'approved' && (
+                                    <button
+                                        onClick={() => handleUpdateVacationStatus('taken')}
+                                        className="w-full bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 shadow-lg shadow-teal-100"
+                                    >
+                                        <CheckCheck size={16} />
+                                        Confirmar Vacaciones Tomadas
+                                    </button>
+                                )}
                             </div>
                         )}
 
                         {selectedDetail.vacation.status === 'taken' && (
                             <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-center gap-2 text-teal-600 bg-teal-50 py-2 rounded-lg border border-teal-100">
                                 <CheckCheck size={18} />
-                                <span className="font-bold text-sm">Vacaciones Validadas</span>
+                                <span className="font-bold text-sm">Vacaciones Confirmadas</span>
                             </div>
                         )}
 
@@ -655,12 +752,92 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
                                 Copiar al Portapapeles
                             </button>
                             <a
-                                href={`mailto:?subject=Resumen de Vacaciones - ${MONTHS[currentMonth]} ${currentYear}&body=${encodeURIComponent(summaryContent)}`}
+                                href={`mailto:?subject=Resumen Anual de Vacaciones - Tráfico RAM&body=${encodeURIComponent(summaryContent)}`}
                                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold flex items-center gap-2 shadow-lg shadow-indigo-200 transition-all"
                             >
                                 <Mail size={18} />
                                 Abrir en Correo
                             </a>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Modal Resumen Individual de Usuario */}
+            {selectedUserSummary && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg animate-in zoom-in-95 duration-200">
+                        <div className="flex justify-between items-center p-6 border-b">
+                            <div className="flex items-center gap-3">
+                                <img src={selectedUserSummary.avatar} className="w-12 h-12 rounded-full object-cover border-2 border-teal-100" />
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-800">{selectedUserSummary.name}</h3>
+                                    <p className="text-sm text-gray-500">Resumen de Vacaciones {currentYear}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setSelectedUserSummary(null)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        <div className="p-6 max-h-[60vh] overflow-y-auto">
+                            <div className="space-y-3">
+                                {vacations
+                                    .filter(v => v.userId === selectedUserSummary.id && v.status !== 'rejected' && v.startDate.startsWith(currentYear.toString()))
+                                    .sort((a, b) => a.startDate.localeCompare(b.startDate))
+                                    .map(v => (
+                                        <div key={v.id} className="bg-gray-50 p-3 rounded-lg border border-gray-100 flex items-center justify-between group">
+                                            <div>
+                                                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
+                                                    {new Date(v.startDate + 'T12:00:00').toLocaleDateString('es-ES', { month: 'long' })}
+                                                </p>
+                                                <p className="text-sm font-semibold text-gray-800">
+                                                    {new Date(v.startDate + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} — {new Date(v.endDate + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                                                </p>
+                                                <p className="text-xs text-teal-600 font-medium">
+                                                    {calculateTotalDays(v.startDate, v.endDate)} días totales / {calculateBusinessDaysForRange(v.startDate, v.endDate)} laborales
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                {v.status === 'taken' ? (
+                                                    <span className="bg-teal-100 text-teal-700 text-[10px] font-bold px-2 py-1 rounded uppercase flex items-center gap-1">
+                                                        <CheckCheck size={10} /> Confirmado
+                                                    </span>
+                                                ) : v.status === 'approved' ? (
+                                                    <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-1 rounded uppercase flex items-center gap-1">
+                                                        <CheckCircle2 size={10} /> Aprobado
+                                                    </span>
+                                                ) : (
+                                                    <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-1 rounded uppercase">Solicitado</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+
+                                {vacations.filter(v => v.userId === selectedUserSummary.id && v.status !== 'rejected' && v.startDate.startsWith(currentYear.toString())).length === 0 && (
+                                    <div className="text-center py-10">
+                                        <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                                            <Palmtree className="text-gray-400" size={24} />
+                                        </div>
+                                        <p className="text-gray-500 font-medium text-sm">No tiene vacaciones registradas en {currentYear}</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="p-6 border-t bg-gray-50 flex gap-3">
+                            <button
+                                onClick={() => setSelectedUserSummary(null)}
+                                className="flex-1 py-2 border border-gray-300 bg-white rounded-lg text-gray-700 hover:bg-gray-50 font-medium transition-colors"
+                            >
+                                Cerrar
+                            </button>
+                            <button
+                                onClick={() => handleGenerateUserVacationSummary(selectedUserSummary)}
+                                className="flex-1 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-bold flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 transition-all"
+                            >
+                                <Mail size={18} />
+                                Enviar por Mail
+                            </button>
                         </div>
                     </div>
                 </div>

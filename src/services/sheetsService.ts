@@ -43,7 +43,7 @@ export const sheetsService = {
   async getUsers() {
     try {
       console.log('🔄 Cargando usuarios de Sheets...');
-      const range = 'Users!A:F';
+      const range = 'Users!A:G';
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}`;
 
       if (!API_KEY || !SHEET_ID) {
@@ -72,7 +72,8 @@ export const sheetsService = {
         email: row[2] || '',
         password: row[3] || '',
         role: row[4] || 'Analyst',
-        avatar: row[5] || 'https://picsum.photos/seed/default/200'
+        avatar: row[5] || 'https://picsum.photos/seed/default/200',
+        isActive: row[6] === undefined ? true : row[6] === 'true' // Columna G
       }));
     } catch (error) {
       console.error('❌ Error loading users from Sheets:', error);

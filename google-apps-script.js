@@ -43,12 +43,13 @@ function doPost(e) {
         usersSheet.deleteRows(2, usersSheet.getLastRow() - 1);
       }
       if (usersSheet.getLastRow() === 0) {
-        usersSheet.appendRow(['id', 'name', 'email', 'password', 'role', 'avatar']);
+        usersSheet.appendRow(['id', 'name', 'email', 'password', 'role', 'avatar', 'isActive']);
       }
       data.users.forEach(user => {
         usersSheet.appendRow([
           user.id || '', user.name || '', user.email || '', user.password || '',
-          user.role || 'Analyst', user.avatar || ''
+          user.role || 'Analyst', user.avatar || '',
+          user.isActive !== undefined ? user.isActive.toString() : 'true'
         ]);
       });
     }
@@ -263,7 +264,7 @@ function handleUserOperation(sheet, operation, user) {
   let usersSheet = sheet.getSheetByName('Users');
   if (!usersSheet) {
     usersSheet = sheet.insertSheet('Users');
-    usersSheet.appendRow(['id', 'name', 'email', 'password', 'role', 'avatar']);
+    usersSheet.appendRow(['id', 'name', 'email', 'password', 'role', 'avatar', 'isActive']);
   }
 
   if (operation === 'create') {
@@ -273,19 +274,21 @@ function handleUserOperation(sheet, operation, user) {
       user.email,
       user.password || '',
       user.role,
-      user.avatar
+      user.avatar,
+      user.isActive !== undefined ? user.isActive.toString() : 'true'
     ]);
   } else if (operation === 'update') {
     const data = usersSheet.getDataRange().getValues();
     for (let i = 1; i < data.length; i++) {
       if (data[i][0] === user.id) {
-        usersSheet.getRange(i + 1, 1, 1, 6).setValues([[
+        usersSheet.getRange(i + 1, 1, 1, 7).setValues([[
           user.id,
           user.name,
           user.email,
           user.password || '',
           user.role,
-          user.avatar
+          user.avatar,
+          user.isActive !== undefined ? user.isActive.toString() : 'true'
         ]]);
         break;
       }

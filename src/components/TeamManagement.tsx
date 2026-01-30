@@ -27,7 +27,8 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
     password: '',
     role: 'Analyst' as User['role'],
     avatar: '',
-    avatarColor: '#3B82F6'
+    avatarColor: '#3B82F6',
+    isActive: true
   });
 
   const avatarColors = [
@@ -51,7 +52,8 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
         password: '', // Never preload password
         role: user.role,
         avatar: user.avatar,
-        avatarColor: user.avatarColor || '#3B82F6'
+        avatarColor: user.avatarColor || '#3B82F6',
+        isActive: user.isActive !== false
       });
     } else {
       setEditingUser(null);
@@ -62,7 +64,8 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
         password: '',
         role: 'Analyst',
         avatar: '',
-        avatarColor: avatarColors[Math.floor(Math.random() * avatarColors.length)]
+        avatarColor: avatarColors[Math.floor(Math.random() * avatarColors.length)],
+        isActive: true
       });
     }
     setShowModal(true);
@@ -123,14 +126,18 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
     return currentUser.role === 'Admin';
   };
 
+  const isAdmin = currentUser.role === 'Admin';
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Gestión de Equipo</h2>
-          <p className="text-sm text-gray-500 mt-1">{users.length} miembros del equipo</p>
+          <p className="text-sm text-gray-500 mt-1">
+            {users.length} miembros ({users.filter(u => u.isActive !== false).length} activos)
+          </p>
         </div>
-        {currentUser.role === 'Admin' && (
+        {isAdmin && (
           <button
             onClick={() => handleOpenModal()}
             className="bg-[#0078D4] hover:bg-[#006cbd] text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm"
@@ -143,8 +150,13 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {users.map(user => (
-          <div key={user.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
-            <div className="flex items-start gap-4">
+          <div key={user.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow relative overflow-hidden">
+            {user.isActive === false && (
+              <div className="absolute top-0 right-0 bg-gray-100 text-gray-500 px-3 py-1 text-[10px] font-bold uppercase tracking-widest border-l border-b border-gray-200">
+                Desactivado
+              </div>
+            )}
+            <div className={`flex items-start gap-4 ${user.isActive === false ? 'opacity-60' : ''}`}>
               {user.avatar ? (
                 <img
                   src={user.avatar}
@@ -209,7 +221,7 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
               </h2>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
               {/* Avatar */}
               <div className="flex flex-col items-center">
                 <div className="relative">
@@ -250,7 +262,6 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
                   )}
                 </div>
 
-                {/* Color picker - solo visible cuando no hay foto */}
                 {!formData.avatar && (
                   <div className="mt-3">
                     <label className="block text-xs font-medium text-gray-700 mb-2 text-center">Color del avatar</label>
@@ -288,7 +299,7 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
                 <input
                   type="email"
                   value={formData.email}
-                  disabled={!!editingUser} // Email typically immutable or restricted
+                  disabled={!!editingUser}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${editingUser ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
                   placeholder="usuario@ram.com"
@@ -318,15 +329,38 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
                   value={formData.role}
                   onChange={(e) => setFormData({ ...formData, role: e.target.value as User['role'] })}
                   className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  disabled={currentUser.role !== 'Admin'} // Only Admin can change roles
+                  disabled={!isAdmin}
                 >
                   <option value="Admin">Admin</option>
                   <option value="Analyst">Analyst</option>
                 </select>
-                {currentUser.role !== 'Admin' && (
+                {!isAdmin && (
                   <p className="text-xs text-gray-500 mt-1">Solo los administradores pueden cambiar roles.</p>
                 )}
               </div>
+
+              {/* Estado Activo - Solo Admin */}
+              {isAdmin && (
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+                  <div>
+                    <p className="text-sm font-bold text-gray-800">Estado del Usuario</p>
+                    <p className="text-xs text-gray-500">
+                      {formData.isActive ? 'El usuario es visible y puede usar el sistema' : 'El usuario está oculto para analistas'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, isActive: !formData.isActive })}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${formData.isActive ? 'bg-teal-500' : 'bg-gray-300'
+                      }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${formData.isActive ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                    />
+                  </button>
+                </div>
+              )}
 
               {/* Botones */}
               <div className="flex gap-3 pt-4">

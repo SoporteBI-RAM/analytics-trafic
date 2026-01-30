@@ -42,7 +42,7 @@ export const FridayTimeOff: React.FC<FridayTimeOffProps> = ({
   const [summaryContent, setSummaryContent] = useState<string | null>(null);
 
   const isAdmin = currentUser.role === 'Admin';
-  const maxTimeOffsPerMonth = 2;
+  const maxTimeOffsPerMonth = 1;
 
   // Obtener todos los viernes del mes actual
   const fridaysInMonth = useMemo(() => {
@@ -142,7 +142,7 @@ export const FridayTimeOff: React.FC<FridayTimeOffProps> = ({
       return;
     }
 
-    // Verificar límite de 2 por mes
+    // Verificar límite de 1 por mes
     if (myTimeOffCount >= maxTimeOffsPerMonth && !isPendingSelection(friday)) {
       return;
     }
@@ -342,7 +342,7 @@ export const FridayTimeOff: React.FC<FridayTimeOffProps> = ({
             <div>
               <p className="font-medium text-gray-800">{currentUser.name}</p>
               <p className="text-sm text-gray-500">
-                {myTimeOffCount} de {maxTimeOffsPerMonth} tardes libres seleccionadas este mes
+                {myTimeOffCount} de {maxTimeOffsPerMonth} tarde libre {myTimeOffCount === 1 ? 'seleccionada' : 'disponible'} este mes
               </p>
             </div>
           </div>
