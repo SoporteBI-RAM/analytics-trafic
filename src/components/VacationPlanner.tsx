@@ -725,7 +725,7 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
                         </div>
 
                         {/* Opción de Día de Cumpleaños */}
-                        {isBirthdayMonth && (
+                        {(isBirthdayMonth || isAdmin) && (
                             <div className="mb-4">
                                 {userVacationStats[targetUserId]?.birthdayUsed ? (
                                     <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg flex items-center gap-3 opacity-60">
@@ -752,8 +752,12 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
                                             className="w-5 h-5 text-pink-600 border-pink-300 rounded focus:ring-pink-500"
                                         />
                                         <div>
-                                            <p className="text-sm font-bold text-pink-700">¡Regalo de cumpleaños disponible!</p>
-                                            <p className="text-xs text-pink-600">Puedes tomar tu día libre en cualquier momento de tu mes de cumpleaños.</p>
+                                            <p className="text-sm font-bold text-pink-700">¡Regalo de cumpleaños!</p>
+                                            <p className="text-xs text-pink-600">
+                                                {isAdmin && !isBirthdayMonth
+                                                    ? 'Asignando beneficio fuera del mes de cumpleaños (Permiso Admin).'
+                                                    : 'Puedes tomar tu día libre en cualquier momento de tu mes de cumpleaños.'}
+                                            </p>
                                         </div>
                                         <Gift className="text-pink-500 ml-auto" size={20} />
                                     </label>
