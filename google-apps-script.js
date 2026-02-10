@@ -14,15 +14,69 @@ function doPost(e) {
       return handleIncrementalOperation_Fixed(sheet, data);
     }
 
-    // PROTECCIÓN: Se han desactivado los métodos de guardado masivo (Legacy) 
-    // para evitar borrados accidentales de hojas completas.
-    // Todas las operaciones deben ser incrementales (data.operation && data.type).
+    // LEGACY: Mantener compatibilidad con guardado completo (Bulk Save)
+    if (data.tasks) {
+      const tasksSheet = sheet.getSheetByName('Tasks');
+      if (tasksSheet.getLastRow() > 1) {
+        tasksSheet.deleteRows(2, tasksSheet.getLastRow() - 1);
+      }
+      if (tasksSheet.getLastRow() === 0) {
+        tasksSheet.appendRow(['id', 'title', 'description', 'status', 'priority', 'assigneeId', 'startDate', 'dueDate', 'tags', 'assigneeIds', 'clientId', 'completedDate', 'recurrence', 'parentTaskId']);
+      }
+      data.tasks.forEach(task => {
+        // Asegurar que tengamos 14 columnas para coincidir con el esquema nuevo
+        tasksSheet.appendRow([
+          task.id || '', task.title || '', task.description || '', task.status || 'todo',
+          task.priority || 'medium', task.assigneeId || '', task.startDate || '',
+          task.dueDate || '', (task.tags || []).join(','), (task.assigneeIds || []).join(','),
+          task.clientId || '',
+          task.completedDate || '',
+          task.recurrence ? JSON.stringify(task.recurrence) : '', // Intentar preservar recurrencia si viene
+          task.parentTaskId || ''
+        ]);
+      });
+    }
+
+    if (data.users) {
+      const usersSheet = sheet.getSheetByName('Users');
+      if (usersSheet.getLastRow() > 1) {
+        usersSheet.deleteRows(2, usersSheet.getLastRow() - 1);
+      }
+      if (usersSheet.getLastRow() === 0) {
+        usersSheet.appendRow(['id', 'name', 'email', 'password', 'role', 'avatar', 'isActive', 'birthday']);
+      }
+      data.users.forEach(user => {
+        usersSheet.appendRow([
+          user.id || '', user.name || '', user.email || '', user.password || '',
+          user.role || 'Analyst', user.avatar || '',
+          user.isActive !== undefined ? user.isActive.toString() : 'true',
+          user.birthday || ''
+        ]);
+      });
+    }
+
+    if (data.clients) {
+      let clientsSheet = sheet.getSheetByName('Clients');
+      if (!clientsSheet) {
+        clientsSheet = sheet.insertSheet('Clients');
+      }
+      if (clientsSheet.getLastRow() > 1) {
+        clientsSheet.deleteRows(2, clientsSheet.getLastRow() - 1);
+      }
+      if (clientsSheet.getLastRow() === 0) {
+        clientsSheet.appendRow(['id', 'name']);
+      }
+      data.clients.forEach(client => {
+        clientsSheet.appendRow([client.id || '', client.name || '']);
+      });
+    }
+
+    if (data.tasks || data.users || data.clients) {
+      return ContentService.createTextOutput(JSON.stringify({ success: true, _version: 'DEBUG_VERIFIED_LEGACY_SUPPORT', message: 'Legacy bulk save executed' })).setMimeType(ContentService.MimeType.JSON);
+    }
 
     // Si no es incremental ni legacy conocido
-    return ContentService.createTextOutput(JSON.stringify({
-      success: false,
-      error: 'Operación no reconocida o método masivo desactivado por seguridad'
-    })).setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify({ success: false, error: 'Operación no reconocida' })).setMimeType(ContentService.MimeType.JSON);
   } catch (error) {
     return ContentService.createTextOutput(JSON.stringify({ success: false, error: error.toString() })).setMimeType(ContentService.MimeType.JSON);
   }
@@ -211,7 +265,7 @@ function handleUserOperation(sheet, operation, user) {
   let usersSheet = sheet.getSheetByName('Users');
   if (!usersSheet) {
     usersSheet = sheet.insertSheet('Users');
-    usersSheet.appendRow(['id', 'name', 'email', 'password', 'role', 'avatar', 'isActive']);
+    usersSheet.appendRow(['id', 'name', 'email', 'password', 'role', 'avatar', 'isActive', 'birthday']);
   }
 
   if (operation === 'create') {
@@ -222,20 +276,22 @@ function handleUserOperation(sheet, operation, user) {
       user.password || '',
       user.role,
       user.avatar,
-      user.isActive !== undefined ? user.isActive.toString() : 'true'
+      user.isActive !== undefined ? user.isActive.toString() : 'true',
+      user.birthday || ''
     ]);
   } else if (operation === 'update') {
     const data = usersSheet.getDataRange().getValues();
     for (let i = 1; i < data.length; i++) {
       if (data[i][0] === user.id) {
-        usersSheet.getRange(i + 1, 1, 1, 7).setValues([[
+        usersSheet.getRange(i + 1, 1, 1, 8).setValues([[
           user.id,
           user.name,
           user.email,
           user.password || '',
           user.role,
           user.avatar,
-          user.isActive !== undefined ? user.isActive.toString() : 'true'
+          user.isActive !== undefined ? user.isActive.toString() : 'true',
+          user.birthday || ''
         ]]);
         break;
       }
@@ -394,8 +450,8 @@ function handleVacationOperation(sheet, operation, vacation) {
   let vacationsSheet = sheet.getSheetByName('Vacations');
   if (!vacationsSheet) {
     vacationsSheet = sheet.insertSheet('Vacations');
-    // Columnas: id, userId, startDate, endDate, daysCount, status, createdAt, createdBy, approvedBy, approvedAt
-    vacationsSheet.appendRow(['id', 'userId', 'startDate', 'endDate', 'daysCount', 'status', 'createdAt', 'createdBy', 'approvedBy', 'approvedAt']);
+    // Columnas: id, userId, startDate, endDate, daysCount, status, createdAt, createdBy, approvedBy, approvedAt, isBirthdayFreeDay
+    vacationsSheet.appendRow(['id', 'userId', 'startDate', 'endDate', 'daysCount', 'status', 'createdAt', 'createdBy', 'approvedBy', 'approvedAt', 'isBirthdayFreeDay']);
   }
 
   const values = [
@@ -408,7 +464,8 @@ function handleVacationOperation(sheet, operation, vacation) {
     vacation.createdAt || '',
     vacation.createdBy || '',
     vacation.approvedBy || '',
-    vacation.approvedAt || ''
+    vacation.approvedAt || '',
+    vacation.isBirthdayFreeDay !== undefined ? vacation.isBirthdayFreeDay.toString() : 'false'
   ];
 
   if (operation === 'create') {
@@ -416,7 +473,7 @@ function handleVacationOperation(sheet, operation, vacation) {
     const data = vacationsSheet.getDataRange().getValues();
     for (let i = 1; i < data.length; i++) {
       if (data[i][0] === vacation.id) {
-        vacationsSheet.getRange(i + 1, 1, 1, 10).setValues([values]);
+        vacationsSheet.getRange(i + 1, 1, 1, 11).setValues([values]);
         return ContentService.createTextOutput(JSON.stringify({ success: true, message: 'Updated existing' })).setMimeType(ContentService.MimeType.JSON);
       }
     }
@@ -426,7 +483,7 @@ function handleVacationOperation(sheet, operation, vacation) {
     const data = vacationsSheet.getDataRange().getValues();
     for (let i = 1; i < data.length; i++) {
       if (data[i][0] === vacation.id) {
-        vacationsSheet.getRange(i + 1, 1, 1, 10).setValues([values]);
+        vacationsSheet.getRange(i + 1, 1, 1, 11).setValues([values]);
         break;
       }
     }

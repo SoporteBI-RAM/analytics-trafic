@@ -42,7 +42,7 @@ export const sheetsService = {
   async getUsers() {
     try {
       console.log('🔄 Cargando usuarios de Sheets...');
-      const range = 'Users!A:G';
+      const range = 'Users!A:H';
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}`;
 
       if (!API_KEY || !SHEET_ID) {
@@ -72,7 +72,8 @@ export const sheetsService = {
         password: row[3] || '',
         role: row[4] || 'Analyst',
         avatar: row[5] || 'https://picsum.photos/seed/default/200',
-        isActive: row[6] === 'false' ? false : true // Por defecto true si está vacío o es 'true'
+        isActive: row[6] === 'false' ? false : true,
+        birthday: row[7] || ''
       }));
     } catch (error) {
       console.error('❌ Error loading users from Sheets:', error);
@@ -425,12 +426,21 @@ export const sheetsService = {
         return [];
       }
 
+      const normalizeDate = (dateStr: string) => {
+        if (!dateStr) return '';
+        const clean = dateStr.replace(/\s+/g, '');
+        if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return clean;
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      };
+
       const [, ...rows] = data.values;
       console.log(`✅ ${rows.length} tardes libres cargadas`);
       return rows.map((row: string[]) => ({
         id: row[0] || '',
         userId: row[1] || '',
-        date: row[2] || '',
+        date: normalizeDate(row[2] || ''),
         month: row[3] || '',
         status: row[4] || 'pending',
         createdAt: row[5] || '',
@@ -488,11 +498,20 @@ export const sheetsService = {
         return [];
       }
 
+      const normalizeDate = (dateStr: string) => {
+        if (!dateStr) return '';
+        const clean = dateStr.replace(/\s+/g, '');
+        if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return clean; // Fallback to clean string if date is weird
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      };
+
       const [, ...rows] = data.values;
       console.log(`✅ ${rows.length} feriados cargados`);
       return rows.map((row: string[]) => ({
         id: row[0] || '',
-        date: row[1] || '',
+        date: normalizeDate(row[1] || ''),
         name: row[2] || '',
         createdBy: row[3] || '',
         createdAt: row[4] || ''
@@ -526,7 +545,7 @@ export const sheetsService = {
   async getVacations() {
     try {
       console.log('🔄 Cargando vacaciones de Sheets...');
-      const range = 'Vacations!A:J';
+      const range = 'Vacations!A:K';
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}`;
 
       if (!API_KEY || !SHEET_ID) {
@@ -547,19 +566,29 @@ export const sheetsService = {
         return [];
       }
 
+      const normalizeDate = (dateStr: string) => {
+        if (!dateStr) return '';
+        const clean = dateStr.replace(/\s+/g, '');
+        if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return clean;
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      };
+
       const [, ...rows] = data.values;
       console.log(`✅ ${rows.length} vacaciones cargadas`);
       return rows.map((row: string[]) => ({
         id: row[0] || '',
         userId: row[1] || '',
-        startDate: row[2] || '',
-        endDate: row[3] || '',
+        startDate: normalizeDate(row[2] || ''),
+        endDate: normalizeDate(row[3] || ''),
         daysCount: parseInt(row[4]) || 0,
         status: row[5] || 'pending',
         createdAt: row[6] || '',
         createdBy: row[7] || '',
         approvedBy: row[8] || '',
-        approvedAt: row[9] || ''
+        approvedAt: row[9] || '',
+        isBirthdayFreeDay: String(row[10] || '').toLowerCase().trim() === 'true'
       }));
     } catch (error) {
       console.error('❌ Error loading vacations from Sheets:', error);

@@ -224,19 +224,27 @@ export const FridayTimeOff: React.FC<FridayTimeOffProps> = ({
     content += `-------------------------------------------\n\n`;
 
     let hasTimeOffs = false;
+    const allRelevantTimeOffs: { user: User, to: FridayTimeOffType }[] = [];
+
     users.forEach(user => {
       const userTimeOffs = monthTimeOffs.filter(to => to.userId === user.id && to.status !== 'rejected');
-      if (userTimeOffs.length > 0) {
-        hasTimeOffs = true;
-        content += `${user.name.toUpperCase()}:\n`;
-        userTimeOffs.forEach((to, index) => {
-          const date = new Date(to.date + 'T12:00:00');
-          const formattedDate = date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
-          content += `- ${formattedDate}\n`;
-        });
-        content += '\n';
-      }
+      userTimeOffs.forEach(to => {
+        allRelevantTimeOffs.push({ user, to });
+      });
     });
+
+    // Ordenar por fecha (la más cercana primero)
+    allRelevantTimeOffs.sort((a, b) => a.to.date.localeCompare(b.to.date));
+
+    if (allRelevantTimeOffs.length > 0) {
+      hasTimeOffs = true;
+      allRelevantTimeOffs.forEach(({ user, to }) => {
+        const date = new Date(to.date + 'T12:00:00');
+        const dayLabel = date.toLocaleDateString('es-ES', { day: 'numeric', month: 'long' });
+        content += `${dayLabel.padEnd(20)} | ${user.name}\n`;
+      });
+      content += '\n';
+    }
 
     if (!hasTimeOffs) {
       content += `No hay tardes libres registradas para este mes.\n\n`;

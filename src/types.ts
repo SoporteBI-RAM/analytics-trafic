@@ -12,6 +12,7 @@ export interface User {
   avatarColor?: string;
   role: 'Admin' | 'Analyst';
   isActive?: boolean;
+  birthday?: string; // YYYY-MM-DD
 }
 
 export interface Client {
@@ -81,6 +82,7 @@ export interface Vacation {
   createdBy: string;
   approvedBy?: string;
   approvedAt?: string;
+  isBirthdayFreeDay?: boolean;
 }
 
 // Tardes Libres - Cada registro representa una tarde libre de un usuario

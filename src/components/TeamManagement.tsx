@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User } from '../types';
-import { Users, Plus, Edit, Trash2, Save, X, Upload } from 'lucide-react';
+import { Users, Plus, Edit, Trash2, Save, X, Upload, Cake } from 'lucide-react';
 import { generateAvatarDataUrl } from '../utils/avatarUtils';
 
 interface TeamManagementProps {
@@ -28,7 +28,8 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
     role: 'Analyst' as User['role'],
     avatar: '',
     avatarColor: '#3B82F6',
-    isActive: true
+    isActive: true,
+    birthday: ''
   });
 
   const avatarColors = [
@@ -53,7 +54,8 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
         role: user.role,
         avatar: user.avatar,
         avatarColor: user.avatarColor || '#3B82F6',
-        isActive: user.isActive !== false
+        isActive: user.isActive !== false,
+        birthday: user.birthday || ''
       });
     } else {
       setEditingUser(null);
@@ -65,7 +67,8 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
         role: 'Analyst',
         avatar: '',
         avatarColor: avatarColors[Math.floor(Math.random() * avatarColors.length)],
-        isActive: true
+        isActive: true,
+        birthday: ''
       });
     }
     setShowModal(true);
@@ -174,6 +177,11 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
               <div className="flex-1 min-w-0">
                 <h3 className="font-bold text-gray-800 truncate">{user.name}</h3>
                 <p className="text-sm text-gray-500 truncate">{user.email}</p>
+                {user.birthday && (
+                  <p className="text-xs text-pink-600 font-medium mt-1 flex items-center gap-1">
+                    <Cake size={12} /> {new Date(user.birthday + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}
+                  </p>
+                )}
                 <div className="flex flex-wrap gap-2 mt-2">
                   <span className="inline-block bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full">
                     {user.role}
@@ -304,6 +312,17 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
                   className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${editingUser ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
                   placeholder="usuario@ram.com"
                   required
+                />
+              </div>
+
+              {/* Cumpleaños */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de Cumpleaños</label>
+                <input
+                  type="date"
+                  value={formData.birthday}
+                  onChange={(e) => setFormData({ ...formData, birthday: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 

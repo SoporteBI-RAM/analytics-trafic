@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { User, Vacation, Holiday } from '../types';
-import { ChevronLeft, ChevronRight, Users, Palmtree, UserPlus, CheckCheck, CheckCircle2, X, Calendar as CalendarIcon, CalendarDays, Trash2, Mail } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Users, Palmtree, UserPlus, CheckCheck, CheckCircle2, X, Calendar as CalendarIcon, CalendarDays, Trash2, Mail, Cake, Gift, AlertCircle } from 'lucide-react';
 import { getLocalDateString } from '../utils/dateUtils';
 
 interface VacationPlannerProps {
@@ -42,6 +42,7 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
     const [showSummaryModal, setShowSummaryModal] = useState(false);
     const [summaryContent, setSummaryContent] = useState<string | null>(null);
     const [selectedUserSummary, setSelectedUserSummary] = useState<User | null>(null);
+    const [isBirthdayRequest, setIsBirthdayRequest] = useState(false);
 
     const isAdmin = currentUser.role === 'Admin';
 
@@ -114,6 +115,23 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
         return dateStr === selectionStart;
     };
 
+    const getBirthdaysForDay = (date: Date) => {
+        const month = date.getMonth() + 1;
+        const day = date.getDate();
+        return users.filter(u => {
+            if (!u.birthday || u.isActive === false) return false;
+            const [, bMonth, bDay] = u.birthday.split('-').map(Number);
+            return bMonth === month && bDay === day;
+        });
+    };
+
+    const isBirthdayMonth = useMemo(() => {
+        const user = users.find(u => u.id === targetUserId);
+        if (!user?.birthday) return false;
+        const [, bMonth] = user.birthday.split('-').map(Number);
+        return bMonth === (currentMonth + 1);
+    }, [targetUserId, users, currentMonth]);
+
     const handleDateClick = (date: Date) => {
         // Solo bloquear feriados, permitir fines de semana
         if (getHoliday(date)) return;
@@ -133,6 +151,55 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
                 setShowConfirmModal(true);
             }
         }
+    };
+
+    const handleExportBirthdays = () => {
+        const monthBirthdays = users.filter(u => {
+            if (!u.birthday || u.isActive === false) return false;
+            const [, bMonth] = u.birthday.split('-').map(Number);
+            return bMonth === (currentMonth + 1);
+        });
+
+        const data = monthBirthdays.map(u => {
+            const bDay = u.birthday!.split('-')[2];
+            const vacation = vacations.find(v =>
+                v.userId === u.id &&
+                v.isBirthdayFreeDay &&
+                v.status !== 'rejected' &&
+                new Date(v.startDate + 'T12:00:00').getMonth() === currentMonth &&
+                new Date(v.startDate + 'T12:00:00').getFullYear() === currentYear
+            );
+            return { user: u, bDay, vacation };
+        }).sort((a, b) => {
+            const dateA = a.vacation ? a.vacation.startDate : `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${a.bDay}`;
+            const dateB = b.vacation ? b.vacation.startDate : `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${b.bDay}`;
+            return dateA.localeCompare(dateB);
+        });
+
+        let content = `Reporte de Cumpleaños: ${MONTHS[currentMonth]} ${currentYear}\n`;
+        content += `Tráfico Analítica RAM\n`;
+        content += `------------------------------------------------------------\n\n`;
+
+        data.forEach(({ user, bDay, vacation }) => {
+            const bDateLabel = `${bDay} de ${MONTHS[currentMonth]}`;
+            content += `${user.name.padEnd(25)} | Cumple: ${bDateLabel}\n`;
+            if (vacation) {
+                const status = vacation.status === 'taken' ? 'CONFIRMADO' : vacation.status === 'approved' ? 'APROBADO' : 'SOLICITADO';
+                content += `                           | Día Libre: ${vacation.startDate} [${status}]\n`;
+            } else {
+                content += `                           | Día Libre: SIN SOLICITAR\n`;
+            }
+            content += `------------------------------------------------------------\n`;
+        });
+
+        if (data.length === 0) {
+            content += `No hay cumpleaños registrados para este mes.\n`;
+        }
+
+        content += `\nGenerado el: ${new Date().toLocaleDateString('es-ES')} a las ${new Date().toLocaleTimeString('es-ES')}`;
+
+        setSummaryContent(content);
+        setShowSummaryModal(true);
     };
 
     // Calculadora de días hábiles local safe
@@ -190,13 +257,15 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
             daysCount: totalDays,
             status: 'pending', // Ahora inicia como Solicitado
             createdAt: new Date().toISOString(),
-            createdBy: currentUser.id
+            createdBy: currentUser.id,
+            isBirthdayFreeDay: isBirthdayRequest
         };
 
         onCreateVacation(newVacation);
         setSelectionStart(null);
         setSelectionEnd(null);
         setShowConfirmModal(false);
+        setIsBirthdayRequest(false);
     };
 
     const handleDeleteEntireVacation = () => {
@@ -237,7 +306,7 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
             if (daysCount > 0) {
                 const newVac1: Vacation = {
                     ...vacation,
-                    id: `vac-${Date.now()}-1`,
+                    id: `vac - ${Date.now()} -1`,
                     endDate: prevDateStr,
                     daysCount: daysCount,
                     createdAt: new Date().toISOString()
@@ -251,7 +320,7 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
             if (daysCount > 0) {
                 const newVac2: Vacation = {
                     ...vacation,
-                    id: `vac-${Date.now()}-2`,
+                    id: `vac - ${Date.now()} -2`,
                     startDate: nextDateStr,
                     daysCount: daysCount,
                     createdAt: new Date().toISOString()
@@ -269,45 +338,50 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
         oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
 
         let content = `Resumen de Vacaciones - Año Completo\n`;
-        content += `Desde: ${todayDate.toLocaleDateString('es-ES')} hasta ${oneYearFromNow.toLocaleDateString('es-ES')}\n`;
+        content += `Desde: ${todayDate.toLocaleDateString('es-ES')} hasta ${oneYearFromNow.toLocaleDateString('es-ES')} \n`;
         content += `Tráfico Analítica RAM\n`;
         content += `-------------------------------------------\n\n`;
 
         let hasVacations = false;
+        const allRelevantVacations: { user: User, v: Vacation }[] = [];
+
         users.forEach(user => {
-            // Filtrar vacaciones de este usuario que estén dentro del próximo año
             const userVacations = vacations.filter(v => {
                 if (v.userId !== user.id || v.status === 'rejected') return false;
-
-                // Una vacación se muestra si está dentro del rango de un año desde hoy
                 const vStart = new Date(v.startDate + 'T12:00:00');
                 const vEnd = new Date(v.endDate + 'T12:00:00');
-
-                // Incluir si la vacación termina después de hoy Y empieza antes de un año desde hoy
                 return (vEnd >= todayDate && vStart <= oneYearFromNow);
-            }).sort((a, b) => a.startDate.localeCompare(b.startDate)); // Ordenar por fecha de inicio
+            });
 
-            if (userVacations.length > 0) {
-                hasVacations = true;
-                content += `${user.name.toUpperCase()}:\n`;
-                userVacations.forEach((v) => {
-                    const start = new Date(v.startDate + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
-                    const end = new Date(v.endDate + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
-                    const totalDays = calculateTotalDays(v.startDate, v.endDate);
-                    const businessDays = calculateBusinessDaysForRange(v.startDate, v.endDate);
-                    const statusLabel = v.status === 'taken' ? 'CONFIRMADO' : v.status === 'approved' ? 'APROBADO' : 'SOLICITADO';
-                    content += `- Del ${start} al ${end} (${totalDays} días / ${businessDays} laborales) [${statusLabel}]\n`;
-                });
-                content += '\n';
-            }
+            userVacations.forEach(v => {
+                allRelevantVacations.push({ user, v });
+            });
         });
+
+        // Ordenar por fecha de inicio (la más cercana primero)
+        allRelevantVacations.sort((a, b) => a.v.startDate.localeCompare(b.v.startDate));
+
+        if (allRelevantVacations.length > 0) {
+            hasVacations = true;
+            allRelevantVacations.forEach(({ user, v }) => {
+                const start = new Date(v.startDate + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+                const end = new Date(v.endDate + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+                const totalDays = calculateTotalDays(v.startDate, v.endDate);
+                const businessDays = calculateBusinessDaysForRange(v.startDate, v.endDate);
+                const statusLabel = v.status === 'taken' ? 'CONFIRMADO' : v.status === 'approved' ? 'APROBADO' : 'SOLICITADO';
+                const bdayExtra = v.isBirthdayFreeDay ? ' [DÍA DE CUMPLEAÑOS]' : '';
+
+                content += `${user.name.padEnd(20)} | ${start} al ${end} (${totalDays} días / ${businessDays} hábiles)[${statusLabel}]${bdayExtra} \n`;
+            });
+            content += '\n';
+        }
 
         if (!hasVacations) {
             content += `No hay vacaciones registradas para el próximo año.\n\n`;
         }
 
         content += `-------------------------------------------\n`;
-        content += `Generado el: ${new Date().toLocaleDateString('es-ES')} a las ${new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
+        content += `Generado el: ${new Date().toLocaleDateString('es-ES')} a las ${new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} `;
 
         setSummaryContent(content);
         setShowSummaryModal(true);
@@ -320,8 +394,8 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
             v.startDate.startsWith(currentYear.toString())
         ).sort((a, b) => a.startDate.localeCompare(b.startDate));
 
-        let content = `Resumen de Vacaciones - ${user.name}\n`;
-        content += `Año ${currentYear}\n`;
+        let content = `Resumen de Vacaciones - ${user.name} \n`;
+        content += `Año ${currentYear} \n`;
         content += `Tráfico Analítica RAM\n`;
         content += `-------------------------------------------\n\n`;
 
@@ -332,19 +406,20 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
                 const totalDays = calculateTotalDays(v.startDate, v.endDate);
                 const businessDays = calculateBusinessDaysForRange(v.startDate, v.endDate);
                 const statusLabel = v.status === 'taken' ? 'CONFIRMADO' : v.status === 'approved' ? 'APROBADO' : 'SOLICITADO';
-                content += `- Del ${start} al ${end} (${totalDays} días / ${businessDays} laborales) [${statusLabel}]\n`;
+                const bdayExtra = v.isBirthdayFreeDay ? ' [DÍA DE CUMPLEAÑOS]' : '';
+                content += `- Del ${start} al ${end} (${totalDays} días / ${businessDays} laborales)[${statusLabel}]${bdayExtra} \n`;
             });
 
             const stats = userVacationStats[user.id];
-            content += `\nTOTAL AÑO ${currentYear}:\n`;
-            content += `- Días Totales: ${stats?.total || 0}\n`;
-            content += `- Días Laborales: ${stats?.business || 0}\n`;
+            content += `\nTOTAL AÑO ${currentYear}: \n`;
+            content += `- Días Totales: ${stats?.total || 0} \n`;
+            content += `- Días Laborales: ${stats?.business || 0} \n`;
         } else {
             content += `No tiene vacaciones registradas para el año ${currentYear}.\n`;
         }
 
         content += `\n-------------------------------------------\n`;
-        content += `Generado el: ${new Date().toLocaleDateString('es-ES')} a las ${new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
+        content += `Generado el: ${new Date().toLocaleDateString('es-ES')} a las ${new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} `;
 
         setSummaryContent(content);
         setShowSummaryModal(true);
@@ -365,12 +440,19 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
     };
 
     const userVacationStats = useMemo(() => {
-        const stats: Record<string, { total: number, business: number }> = {};
+        const stats: Record<string, { total: number, business: number, birthdayUsed: boolean, birthdayInfo?: string }> = {};
         vacations.forEach(v => {
             if (v.status !== 'rejected' && v.startDate.startsWith(currentYear.toString())) {
-                if (!stats[v.userId]) stats[v.userId] = { total: 0, business: 0 };
-                stats[v.userId].total += calculateTotalDays(v.startDate, v.endDate);
-                stats[v.userId].business += calculateBusinessDaysForRange(v.startDate, v.endDate);
+                if (!stats[v.userId]) stats[v.userId] = { total: 0, business: 0, birthdayUsed: false };
+                if (v.isBirthdayFreeDay) {
+                    stats[v.userId].birthdayUsed = true;
+                    const date = new Date(v.startDate + 'T12:00:00');
+                    const monthName = MONTHS[date.getMonth()].toLowerCase();
+                    stats[v.userId].birthdayInfo = `1 día libre por cumpleaños en ${monthName}`;
+                } else {
+                    stats[v.userId].total += calculateTotalDays(v.startDate, v.endDate);
+                    stats[v.userId].business += calculateBusinessDaysForRange(v.startDate, v.endDate);
+                }
             }
         });
         return stats;
@@ -395,6 +477,15 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
 
                     <div className="flex items-center gap-4">
                         <button
+                            onClick={handleExportBirthdays}
+                            className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors shadow-sm"
+                            title="Exportar cumpleaños del mes"
+                        >
+                            <Cake size={18} />
+                            <span className="hidden md:inline">Cumpleaños</span>
+                        </button>
+
+                        <button
                             onClick={handleGenerateVacationSummary}
                             className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors shadow-sm mr-2"
                             title="Enviar resumen por correo"
@@ -407,7 +498,8 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
                             <button onClick={goToPreviousMonth} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
                                 <ChevronLeft size={20} />
                             </button>
-                            <span className="text-lg font-semibold text-gray-800 min-w-[180px] text-center">
+                            <span className={`text - lg font - semibold min - w - [180px] text - center ${isBirthdayMonth ? 'text-pink-600 flex items-center justify-center gap-2' : 'text-gray-800'} `}>
+                                {isBirthdayMonth && <Cake size={20} />}
                                 {MONTHS[currentMonth]} {currentYear}
                             </span>
                             <button onClick={goToNextMonth} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
@@ -442,6 +534,7 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
                     <div className="flex items-center gap-2"><div className="w-3 h-3 bg-teal-100 border border-teal-300 rounded"></div><span className="text-gray-500">Selección</span></div>
                     <div className="flex items-center gap-2"><div className="w-3 h-3 bg-indigo-100 border border-indigo-300 rounded"></div><span className="text-gray-500">Vacaciones</span></div>
                     <div className="flex items-center gap-2"><CheckCheck size={14} className="text-teal-600" /> <span className="text-gray-500">Confirmado (Admin)</span></div>
+                    <div className="flex items-center gap-2"><Cake size={14} className="text-pink-500" /> <span className="text-gray-500">Cumpleaños / Regalo</span></div>
                 </div>
 
                 {/* Calendario Grid */}
@@ -468,6 +561,10 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
                         if (holiday) bgClass = 'bg-red-50';
                         if (isSelected) bgClass = 'bg-teal-50 ring-inset ring-2 ring-teal-400';
 
+                        const birthdaysOnDay = getBirthdaysForDay(date);
+                        const hasBirthday = birthdaysOnDay.length > 0;
+                        const hasBirthdayFreeDay = vacationsOnDay.some(v => v.isBirthdayFreeDay);
+
                         return (
                             <div
                                 key={idx}
@@ -477,6 +574,8 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
                                 className={`
                     min-h-[100px] p-2 relative group hover:bg-gray-50 transition-colors cursor-pointer
                     ${bgClass}
+                    ${hasBirthday ? 'ring-inset ring-2 ring-pink-400 bg-pink-100/30' : ''}
+                    ${hasBirthdayFreeDay ? 'border-2 border-dashed border-pink-400 bg-pink-50/40 ring-2 ring-pink-100 ring-inset' : ''}
                 `}
                             >
                                 <div className="flex justify-between items-start">
@@ -487,6 +586,20 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
                                         <span className="text-[10px] bg-red-100 text-red-700 px-1 rounded truncate max-w-[80px]" title={holiday.name}>
                                             {holiday.name}
                                         </span>
+                                    )}
+                                    {getBirthdaysForDay(date).length > 0 && (
+                                        <div className="flex -space-x-1">
+                                            {getBirthdaysForDay(date).map(u => (
+                                                <div key={u.id} className="relative group/bday">
+                                                    <div className="bg-pink-100 p-1 rounded-full shadow-sm animate-bounce">
+                                                        <Cake size={20} className="text-pink-600 fill-pink-300" />
+                                                    </div>
+                                                    <div className="absolute hidden group-hover/bday:block bottom-full mb-1 left-1/2 -translate-x-1/2 bg-pink-600 text-white text-[10px] py-1 px-2 rounded-lg whitespace-nowrap z-10 shadow-lg font-bold">
+                                                        ¡Cumpleaños de {u.name}! 🎂
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
                                     )}
                                 </div>
 
@@ -510,6 +623,11 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
                                             >
                                                 <img src={user.avatar} className="w-4 h-4 rounded-full" />
                                                 <span className="truncate text-indigo-700 font-medium">{user.name.split(' ')[0]}</span>
+                                                {v.isBirthdayFreeDay && (
+                                                    <div className="bg-white rounded-full p-0.5 ml-1 flex items-center justify-center shadow-sm border border-pink-200">
+                                                        <Gift size={12} className="text-pink-600 fill-pink-100 animate-pulse" />
+                                                    </div>
+                                                )}
                                                 {/* Indicador visual de validación: Círculo verde con check */}
                                                 {v.status === 'taken' && (
                                                     <div className="bg-teal-500 rounded-full p-0.5 ml-auto flex items-center justify-center shadow-sm">
@@ -537,12 +655,23 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
                         <div
                             key={u.id}
                             onClick={() => setSelectedUserSummary(u)}
-                            className="bg-gray-50 p-4 rounded-lg flex items-center gap-3 border border-gray-100 hover:bg-white hover:shadow-md hover:border-teal-200 cursor-pointer transition-all group"
+                            className="bg-gray-50 p-4 rounded-lg flex items-center gap-3 border border-gray-100 hover:bg-white hover:shadow-md hover:hover:border-teal-200 cursor-pointer transition-all group"
                         >
                             <img src={u.avatar} className="w-10 h-10 rounded-full bg-white object-cover border-2 border-transparent group-hover:border-teal-400 transition-all" />
                             <div>
                                 <p className="font-semibold text-gray-800 text-sm group-hover:text-teal-700">{u.name}</p>
-                                <p className="text-xs text-gray-500">{userVacationStats[u.id]?.total || 0} días ({userVacationStats[u.id]?.business || 0} hábiles)</p>
+                                <p className="text-xs text-gray-500">
+                                    {userVacationStats[u.id]?.total || 0} días ({userVacationStats[u.id]?.business || 0} hábiles)
+                                </p>
+                                {userVacationStats[u.id]?.birthdayUsed ? (
+                                    <p className="text-[10px] text-pink-600 font-bold mt-1 flex items-center gap-1">
+                                        <Cake size={10} /> 1/1 {userVacationStats[u.id]?.birthdayInfo}
+                                    </p>
+                                ) : (
+                                    <p className="text-[10px] text-gray-400 font-medium mt-1 flex items-center gap-1">
+                                        <Cake size={10} /> 0/1 Día libre por cumpleaños
+                                    </p>
+                                )}
                             </div>
                         </div>
                     ))}
@@ -579,9 +708,46 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
                             </div>
                         </div>
 
+                        {/* Opción de Día de Cumpleaños */}
+                        {isBirthdayMonth && (
+                            <div className="mb-4">
+                                {userVacationStats[targetUserId]?.birthdayUsed ? (
+                                    <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg flex items-center gap-3 opacity-60">
+                                        <AlertCircle className="text-gray-400" size={20} />
+                                        <div>
+                                            <p className="text-sm font-bold text-gray-500">Ya solicitaste tu día libre (1/1)</p>
+                                            <p className="text-xs text-gray-400">Solo se permite un día libre por cumpleaños al año.</p>
+                                        </div>
+                                    </div>
+                                ) : calculateTotalDaysForSelection() > 1 ? (
+                                    <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg flex items-center gap-3">
+                                        <AlertCircle className="text-amber-500" size={20} />
+                                        <div>
+                                            <p className="text-sm font-bold text-amber-700">Limitado a 1 día</p>
+                                            <p className="text-xs text-amber-600">Para usar tu regalo de cumpleaños, selecciona solo un día.</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <label className="flex items-center gap-3 p-3 bg-pink-50 border border-pink-100 rounded-lg cursor-pointer hover:bg-pink-100 transition-colors">
+                                        <input
+                                            type="checkbox"
+                                            checked={isBirthdayRequest}
+                                            onChange={(e) => setIsBirthdayRequest(e.target.checked)}
+                                            className="w-5 h-5 text-pink-600 border-pink-300 rounded focus:ring-pink-500"
+                                        />
+                                        <div>
+                                            <p className="text-sm font-bold text-pink-700">¡Es el mes de cumpleaños! (0/1)</p>
+                                            <p className="text-xs text-pink-600">Marcar este día como mi regalo de cumpleaños libre.</p>
+                                        </div>
+                                        <Gift className="text-pink-500 ml-auto" size={20} />
+                                    </label>
+                                )}
+                            </div>
+                        )}
+
                         <div className="flex gap-3">
                             <button
-                                onClick={() => { setShowConfirmModal(false); setSelectionStart(null); setSelectionEnd(null); }}
+                                onClick={() => { setShowConfirmModal(false); setSelectionStart(null); setSelectionEnd(null); setIsBirthdayRequest(false); }}
                                 className="flex-1 py-2 border border-gray-300 rounded text-gray-600 hover:bg-gray-50"
                             >
                                 Cancelar
@@ -640,6 +806,13 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
                                         {calculateBusinessDaysForRange(selectedDetail.vacation.startDate, selectedDetail.vacation.endDate)} días
                                     </span>
                                 </div>
+                                {selectedDetail.vacation.isBirthdayFreeDay && (
+                                    <div className="flex justify-between text-xs mt-2 p-1.5 bg-pink-50 rounded border border-pink-100">
+                                        <span className="text-pink-600 font-bold flex items-center gap-1">
+                                            <Gift size={12} /> DÍA DE CUMPLEAÑOS
+                                        </span>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -750,7 +923,7 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
                                 Copiar al Portapapeles
                             </button>
                             <a
-                                href={`mailto:?subject=Resumen Anual de Vacaciones - Tráfico RAM&body=${encodeURIComponent(summaryContent)}`}
+                                href={`mailto:? subject = Resumen Anual de Vacaciones - Tráfico RAM & body=${encodeURIComponent(summaryContent)} `}
                                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold flex items-center gap-2 shadow-lg shadow-indigo-200 transition-all"
                             >
                                 <Mail size={18} />
@@ -760,6 +933,7 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
                     </div>
                 </div>
             )}
+
             {/* Modal Resumen Individual de Usuario */}
             {selectedUserSummary && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -793,6 +967,7 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
                                                 </p>
                                                 <p className="text-xs text-teal-600 font-medium">
                                                     {calculateTotalDays(v.startDate, v.endDate)} días totales / {calculateBusinessDaysForRange(v.startDate, v.endDate)} laborales
+                                                    {v.isBirthdayFreeDay && <span className="text-pink-600 ml-2 font-bold">[CUMPLE]</span>}
                                                 </p>
                                             </div>
                                             <div className="flex items-center gap-2">
