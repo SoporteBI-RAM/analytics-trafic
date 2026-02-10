@@ -478,8 +478,8 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
                             <Palmtree className="text-teal-600" size={20} />
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold text-gray-800">Planificador de Vacaciones</h2>
-                            <p className="text-sm text-gray-500">Gestiona las vacaciones anuales del equipo</p>
+                            <h2 className="text-xl font-bold text-gray-800">Planificador de Vacaciones y Cumpleaños</h2>
+                            <p className="text-sm text-gray-500">Gestiona las vacaciones y beneficios de cumpleaños del equipo</p>
                         </div>
                     </div>
 

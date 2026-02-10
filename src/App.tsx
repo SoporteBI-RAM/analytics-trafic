@@ -1177,7 +1177,7 @@ const App: React.FC = () => {
               className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${viewMode === ViewMode.VACATIONS ? 'bg-ram-cream text-ram-navy font-bold' : 'text-ram-grey hover:bg-gray-50'}`}
             >
               <Palmtree size={18} />
-              Planificador de Vacaciones
+              Planificador de Vacaciones y Cumpleaños
             </button>
           </div>
 
@@ -1286,7 +1286,7 @@ const App: React.FC = () => {
                   {viewMode === ViewMode.CLIENT_PERFORMANCE && 'Rendimiento Clientes'}
                   {viewMode === ViewMode.USER_PERFORMANCE && 'Rendimiento Usuarios'}
                   {viewMode === ViewMode.FRIDAY_TIME_OFF && 'Tardes Libres'}
-                  {viewMode === ViewMode.VACATIONS && 'Planificador de Vacaciones'}
+                  {viewMode === ViewMode.VACATIONS && 'Planificador de Vacaciones y Cumpleaños'}
                 </h1>
                 <div className="flex items-center gap-2">
                   <div className="flex flex-col">
