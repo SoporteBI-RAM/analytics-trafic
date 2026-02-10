@@ -574,7 +574,6 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
                                 className={`
                     min-h-[100px] p-2 relative group hover:bg-gray-50 transition-colors cursor-pointer
                     ${bgClass}
-                    ${hasBirthday ? 'ring-inset ring-2 ring-pink-400 bg-pink-100/30' : ''}
                     ${hasBirthdayFreeDay ? 'border-2 border-dashed border-pink-400 bg-pink-50/40 ring-2 ring-pink-100 ring-inset' : ''}
                 `}
                             >
@@ -588,13 +587,16 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
                                         </span>
                                     )}
                                     {getBirthdaysForDay(date).length > 0 && (
-                                        <div className="flex -space-x-1">
+                                        <div className="flex flex-col items-end gap-1">
                                             {getBirthdaysForDay(date).map(u => (
-                                                <div key={u.id} className="relative group/bday">
+                                                <div key={u.id} className="relative group/bday flex items-center gap-1">
+                                                    <span className="text-[10px] font-bold text-pink-600 bg-pink-100 px-1 rounded shadow-sm">
+                                                        {u.name.split(' ').map(n => n[0]).join('').substring(0, 2)}
+                                                    </span>
                                                     <div className="bg-pink-100 p-1 rounded-full shadow-sm animate-bounce">
-                                                        <Cake size={20} className="text-pink-600 fill-pink-300" />
+                                                        <Cake size={16} className="text-pink-600 fill-pink-300" />
                                                     </div>
-                                                    <div className="absolute hidden group-hover/bday:block bottom-full mb-1 left-1/2 -translate-x-1/2 bg-pink-600 text-white text-[10px] py-1 px-2 rounded-lg whitespace-nowrap z-10 shadow-lg font-bold">
+                                                    <div className="absolute hidden group-hover/bday:block bottom-full mb-1 right-0 bg-pink-600 text-white text-[10px] py-1 px-2 rounded-lg whitespace-nowrap z-10 shadow-lg font-bold">
                                                         ¡Cumpleaños de {u.name}! 🎂
                                                     </div>
                                                 </div>
