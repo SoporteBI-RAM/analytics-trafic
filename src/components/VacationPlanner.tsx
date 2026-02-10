@@ -128,9 +128,19 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
     const isBirthdayMonth = useMemo(() => {
         const user = users.find(u => u.id === targetUserId);
         if (!user?.birthday) return false;
-        const [, bMonth] = user.birthday.split('-').map(Number);
+
+        // El mes es el segundo componente en YYYY-MM-DD o DD-MM-YYYY
+        const bMonth = parseInt(user.birthday.split('-')[1]);
+
+        // Si hay una selección activa, verificamos si el mes seleccionado coincide
+        if (selectionStart) {
+            const sMonth = parseInt(selectionStart.split('-')[1]);
+            return bMonth === sMonth;
+        }
+
+        // De lo contrario (ej. para el icono del header), usamos el mes en vista
         return bMonth === (currentMonth + 1);
-    }, [targetUserId, users, currentMonth]);
+    }, [targetUserId, users, currentMonth, selectionStart]);
 
     const handleDateClick = (date: Date) => {
         // Solo bloquear feriados, permitir fines de semana
@@ -738,8 +748,8 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
                                             className="w-5 h-5 text-pink-600 border-pink-300 rounded focus:ring-pink-500"
                                         />
                                         <div>
-                                            <p className="text-sm font-bold text-pink-700">¡Es el mes de cumpleaños! (0/1)</p>
-                                            <p className="text-xs text-pink-600">Marcar este día como mi regalo de cumpleaños libre.</p>
+                                            <p className="text-sm font-bold text-pink-700">¡Regalo de cumpleaños disponible!</p>
+                                            <p className="text-xs text-pink-600">Puedes tomar tu día libre en cualquier momento de tu mes de cumpleaños.</p>
                                         </div>
                                         <Gift className="text-pink-500 ml-auto" size={20} />
                                     </label>
