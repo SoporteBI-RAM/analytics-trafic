@@ -676,12 +676,18 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
                                     {userVacationStats[u.id]?.total || 0} días ({userVacationStats[u.id]?.business || 0} hábiles)
                                 </p>
                                 {userVacationStats[u.id]?.birthdayUsed ? (
-                                    <p className="text-[10px] text-pink-600 font-bold mt-1 flex items-center gap-1">
-                                        <Cake size={10} /> 1/1 {userVacationStats[u.id]?.birthdayInfo}
+                                    <p className="text-[10px] text-pink-600 font-bold mt-1 flex items-center gap-1.5">
+                                        <Cake size={10} />
+                                        <span className="bg-pink-100 px-1 rounded text-[9px]">1/1</span>
+                                        <span className="opacity-40">|</span>
+                                        {userVacationStats[u.id]?.birthdayInfo}
                                     </p>
                                 ) : (
-                                    <p className="text-[10px] text-gray-400 font-medium mt-1 flex items-center gap-1">
-                                        <Cake size={10} /> 0/1 Día libre por cumpleaños
+                                    <p className="text-[10px] text-gray-400 font-medium mt-1 flex items-center gap-1.5">
+                                        <Cake size={10} />
+                                        <span className="bg-gray-100 px-1 rounded text-[9px]">0/1</span>
+                                        <span className="opacity-40">|</span>
+                                        Día libre por cumpleaños
                                     </p>
                                 )}
                             </div>

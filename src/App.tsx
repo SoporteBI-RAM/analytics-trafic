@@ -30,7 +30,7 @@ import {
   Menu,
   X,
   Edit,
-  Trash2, AlertCircle, Check, Search, Filter, Calendar, ArrowLeft, BarChart3, Database, History, Layout, Settings, Briefcase, Save, Building2, Award, ChevronDown, ChevronUp, Sun, RefreshCw, Palmtree
+  Trash2, AlertCircle, Check, Search, Filter, Calendar, ArrowLeft, BarChart3, Database, History, Layout, Settings, Briefcase, Save, Building2, Award, ChevronDown, ChevronUp, Sun, RefreshCw, Palmtree, Cake
 } from 'lucide-react';
 import { getLocalDateString } from './utils/dateUtils';
 
@@ -1289,16 +1289,59 @@ const App: React.FC = () => {
                   {viewMode === ViewMode.VACATIONS && 'Planificador de Vacaciones'}
                 </h1>
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-400 font-medium text-sm md:text-base">
-                    Hola {currentUser?.name.split(' ')[0]} 👋
-                  </span>
-                  <button
-                    onClick={() => syncDataFromSheets(true)}
-                    className="p-1.5 bg-green-50 text-green-600 rounded-full hover:bg-green-100 transition-colors"
-                    title="Actualizar datos"
-                  >
-                    <RefreshCw size={18} />
-                  </button>
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400 font-medium text-sm md:text-base">
+                        Hola {currentUser?.name.split(' ')[0]} 👋
+                      </span>
+                      <button
+                        onClick={() => syncDataFromSheets(true)}
+                        className="p-1.5 bg-green-50 text-green-600 rounded-full hover:bg-green-100 transition-colors"
+                        title="Actualizar datos"
+                      >
+                        <RefreshCw size={18} />
+                      </button>
+                    </div>
+                    {/* Birthday Alerts */}
+                    <div className="flex flex-col gap-0.5">
+                      {(() => {
+                        const today = new Date();
+                        const tomorrow = new Date(today);
+                        tomorrow.setDate(today.getDate() + 1);
+
+                        const getBDays = (d: Date) => {
+                          const m = d.getMonth() + 1;
+                          const day = d.getDate();
+                          return users.filter(u => {
+                            if (!u.birthday || u.isActive === false) return false;
+                            const parts = u.birthday.split('-');
+                            // Handle both YYYY-MM-DD and MM-DD formats (usually it's YYYY-MM-DD from what I see)
+                            const bMonth = parts.length === 3 ? parseInt(parts[1]) : parseInt(parts[0]);
+                            const bDay = parts.length === 3 ? parseInt(parts[2]) : parseInt(parts[1]);
+                            return bMonth === m && bDay === day;
+                          });
+                        };
+
+                        const todayBDays = getBDays(today);
+                        const tomorrowBDays = getBDays(tomorrow);
+
+                        return (
+                          <>
+                            {todayBDays.length > 0 && (
+                              <p className="text-[10px] font-bold text-pink-600 flex items-center gap-1 animate-pulse">
+                                <Cake size={10} /> Hoy cumple: {todayBDays.map(u => u.name.split(' ')[0]).join(', ')} 🎂
+                              </p>
+                            )}
+                            {tomorrowBDays.length > 0 && (
+                              <p className="text-[10px] font-medium text-indigo-500 flex items-center gap-1">
+                                <Cake size={10} /> Mañana: {tomorrowBDays.map(u => u.name.split(' ')[0]).join(', ')}
+                              </p>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
                 </div>
               </div>
               <p className="hidden md:block text-sm text-gray-500 mt-1">
