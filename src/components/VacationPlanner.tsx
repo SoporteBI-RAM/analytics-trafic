@@ -357,7 +357,7 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
 
         users.forEach(user => {
             const userVacations = vacations.filter(v => {
-                if (v.userId !== user.id || v.status === 'rejected') return false;
+                if (v.userId !== user.id || v.status === 'rejected' || v.isBirthdayFreeDay) return false;
                 const vStart = new Date(v.startDate + 'T12:00:00');
                 const vEnd = new Date(v.endDate + 'T12:00:00');
                 return (vEnd >= todayDate && vStart <= oneYearFromNow);
@@ -379,9 +379,7 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
                 const totalDays = calculateTotalDays(v.startDate, v.endDate);
                 const businessDays = calculateBusinessDaysForRange(v.startDate, v.endDate);
                 const statusLabel = v.status === 'taken' ? 'CONFIRMADO' : v.status === 'approved' ? 'APROBADO' : 'SOLICITADO';
-                const bdayExtra = v.isBirthdayFreeDay ? ' [DÍA DE CUMPLEAÑOS]' : '';
-
-                content += `${user.name.padEnd(20)} | ${start} al ${end} (${totalDays} días / ${businessDays} hábiles)[${statusLabel}]${bdayExtra} \n`;
+                content += `${user.name.padEnd(20)} | ${start} al ${end} (${totalDays} días / ${businessDays} hábiles)[${statusLabel}] \n`;
             });
             content += '\n';
         }
@@ -401,6 +399,7 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
         const userVacations = vacations.filter(v =>
             v.userId === user.id &&
             v.status !== 'rejected' &&
+            !v.isBirthdayFreeDay &&
             v.startDate.startsWith(currentYear.toString())
         ).sort((a, b) => a.startDate.localeCompare(b.startDate));
 
@@ -416,8 +415,7 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
                 const totalDays = calculateTotalDays(v.startDate, v.endDate);
                 const businessDays = calculateBusinessDaysForRange(v.startDate, v.endDate);
                 const statusLabel = v.status === 'taken' ? 'CONFIRMADO' : v.status === 'approved' ? 'APROBADO' : 'SOLICITADO';
-                const bdayExtra = v.isBirthdayFreeDay ? ' [DÍA DE CUMPLEAÑOS]' : '';
-                content += `- Del ${start} al ${end} (${totalDays} días / ${businessDays} laborales)[${statusLabel}]${bdayExtra} \n`;
+                content += `- Del ${start} al ${end} (${totalDays} días / ${businessDays} laborales)[${statusLabel}] \n`;
             });
 
             const stats = userVacationStats[user.id];
@@ -498,10 +496,10 @@ export const VacationPlanner: React.FC<VacationPlannerProps> = ({
                         <button
                             onClick={handleGenerateVacationSummary}
                             className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors shadow-sm mr-2"
-                            title="Enviar resumen por correo"
+                            title="Listado de vacaciones del equipo"
                         >
                             <Mail size={18} />
-                            <span className="hidden md:inline">Enviar Resumen</span>
+                            <span className="hidden md:inline">Vacaciones</span>
                         </button>
 
                         <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-1 border border-gray-100">
